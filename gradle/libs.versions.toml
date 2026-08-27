@@ -1,0 +1,14 @@
+[versions]
+loom = "1.17-SNAPSHOT"
+shadow = "8.3.8"
+moddevgradle = "2.0.144"
+forgegradle = "[7.0.21,8.0)"
+paperApi = "26.2.build.119-stable"
+velocityApi = "3.3.0-SNAPSHOT"
+bungeeApi = "1.21-R0.4"
+
+[plugins]
+loom = { id = "net.fabricmc.fabric-loom", version.ref = "loom" }
+shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
+moddevgradle = { id = "net.neoforged.moddev", version.ref = "moddevgradle" }
+forgegradle = { id = "net.minecraftforge.gradle", version.ref = "forgegradle" }

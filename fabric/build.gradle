@@ -1,0 +1,43 @@
+plugins {
+    alias(libs.plugins.loom)
+}
+
+base {
+    archivesName = 'historycli-fabric'
+}
+
+loom {
+    splitEnvironmentSourceSets()
+    mods {
+        "${rootProject.ext.modId}" {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+    }
+}
+
+configurations {
+    jarInJar
+    implementation.extendsFrom jarInJar
+}
+
+loom.nestJars(tasks.named("jar"), configurations.jarInJar)
+
+dependencies {
+    minecraft "com.mojang:minecraft:${rootProject.ext.minecraftVersion}"
+    implementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}"
+
+    jarInJar project(':common')
+    implementation project(':common')
+}
+
+processResources {
+    def version = project.version
+    inputs.property 'version', version
+    inputs.property 'mod_id', rootProject.ext.modId
+    inputs.property 'mod_name', rootProject.ext.modName
+    filesMatching('fabric.mod.json') {
+        expand 'version': version, 'mod_id': rootProject.ext.modId, 'mod_name': rootProject.ext.modName
+    }
+}

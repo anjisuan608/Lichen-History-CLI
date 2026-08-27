@@ -1,0 +1,58 @@
+plugins {
+    alias(libs.plugins.moddevgradle)
+    alias(libs.plugins.shadow)
+}
+
+base {
+    archivesName = 'historycli-neoforge'
+}
+
+configurations {
+    shade
+    implementation.extendsFrom shade
+}
+
+neoForge {
+    version = rootProject.neo_version
+    runs {
+        server {
+            server()
+            programArgument '--nogui'
+        }
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+    mods {
+        "${rootProject.ext.modId}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+dependencies {
+    shade project(':common')
+}
+
+processResources {
+    def version = project.version
+    inputs.property 'version', version
+    inputs.property 'mod_id', rootProject.ext.modId
+    inputs.property 'mod_name', rootProject.ext.modName
+    inputs.property 'mod_license', rootProject.mod_license
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand 'version': version, 'mod_id': rootProject.ext.modId,
+                'mod_name': rootProject.ext.modName, 'mod_license': rootProject.mod_license
+    }
+}
+
+shadowJar {
+    configurations = [project.configurations.shade]
+    archiveClassifier = ''
+    dependencies {
+        include(dependency('org.anjisuan608.historycli:.*'))
+    }
+}
+
+build.dependsOn shadowJar

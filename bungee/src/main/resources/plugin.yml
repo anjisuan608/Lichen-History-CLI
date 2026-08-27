@@ -1,0 +1,5 @@
+name: LichenHistoryCli
+version: '${version}'
+main: org.anjisuan608.historycli.bungee.BungeeHistoryPlugin
+author: anjisuan608
+description: Bash-like history command management for Minecraft.

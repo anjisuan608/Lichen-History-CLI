@@ -1,0 +1,41 @@
+plugins {
+    alias(libs.plugins.shadow)
+}
+
+base {
+    archivesName = 'historycli-bungee'
+}
+
+configurations {
+    shade
+    implementation.extendsFrom shade
+}
+
+repositories {
+    maven { url = 'https://oss.sonatype.org/content/repositories/releases/' }
+}
+
+dependencies {
+    compileOnly('net.md-5:bungeecord-api:' + libs.versions.bungeeApi.get()) {
+        exclude(module: 'bungeecord-protocol')
+    }
+    shade project(':common')
+}
+
+processResources {
+    def version = project.version
+    inputs.property 'version', version
+    filesMatching('plugin.yml') {
+        expand 'version': version
+    }
+}
+
+shadowJar {
+    configurations = [project.configurations.shade]
+    archiveClassifier = ''
+    dependencies {
+        include(dependency('org.anjisuan608.historycli:.*'))
+    }
+}
+
+build.dependsOn shadowJar

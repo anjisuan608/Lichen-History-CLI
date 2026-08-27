@@ -1,0 +1,10 @@
+{
+  "id": "lichenhistorycli",
+  "name": "Lichen History CLI",
+  "version": "${version}",
+  "description": "Bash-like history command management for Minecraft.",
+  "authors": [
+    "anjisuan608"
+  ],
+  "main": "org.anjisuan608.historycli.velocity.VelocityHistoryPlugin"
+}

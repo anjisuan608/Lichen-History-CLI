@@ -1,0 +1,8 @@
+name: LichenHistoryCli
+version: '${version}'
+main: org.anjisuan608.historycli.bukkit.BukkitHistoryPlugin
+api-version: '1.21'
+authors:
+  - anjisuan608
+folia-supported: true
+description: Bash-like history command management for Minecraft.

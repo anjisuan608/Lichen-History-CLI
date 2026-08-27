@@ -1,0 +1,25 @@
+modLoader = "javafml"
+loaderVersion = "[2,)"
+license = "${mod_license}"
+
+[[mods]]
+modId = "${mod_id}"
+version = "${version}"
+displayName = "${mod_name}"
+description = "Bash-like history command management for Minecraft."
+authors = "anjisuan608"
+credits = "luosangguichen"
+
+[[dependencies.${mod_id}]]
+modId = "forge"
+type = "required"
+versionRange = "[65.1,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "minecraft"
+type = "required"
+versionRange = "[26.1,26.3)"
+ordering = "NONE"
+side = "BOTH"

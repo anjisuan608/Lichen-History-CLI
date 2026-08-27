@@ -1,0 +1,39 @@
+plugins {
+    alias(libs.plugins.shadow)
+}
+
+base {
+    archivesName = 'historycli-bukkit'
+}
+
+configurations {
+    shade
+    implementation.extendsFrom shade
+}
+
+repositories {
+    maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+}
+
+dependencies {
+    compileOnly 'io.papermc.paper:paper-api:' + libs.versions.paperApi.get()
+    shade project(':common')
+}
+
+processResources {
+    def version = project.version
+    inputs.property 'version', version
+    filesMatching('plugin.yml') {
+        expand 'version': version
+    }
+}
+
+shadowJar {
+    configurations = [project.configurations.shade]
+    archiveClassifier = ''
+    dependencies {
+        include(dependency('org.anjisuan608.historycli:.*'))
+    }
+}
+
+build.dependsOn shadowJar

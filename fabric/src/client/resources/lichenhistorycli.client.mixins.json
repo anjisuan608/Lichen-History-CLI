@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "org.anjisuan608.historycli.fabric.mixin.client",
+  "compatibilityLevel": "JAVA_25",
+  "client": [],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "${mod_id}",
+  "version": "${version}",
+  "name": "${mod_name}",
+  "description": "Bash-like history command management for Minecraft.",
+  "authors": [
+    "anjisuan608"
+  ],
+  "credits": "luosangguichen",
+  "license": "All Rights Reserved",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "org.anjisuan608.historycli.fabric.HistoryCliFabric"
+    ],
+    "client": [
+      "org.anjisuan608.historycli.fabric.client.HistoryCliFabricClient"
+    ]
+  },
+  "mixins": [
+    "lichenhistorycli.mixins.json",
+    {
+      "config": "lichenhistorycli.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": ">=26.1 <27",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}

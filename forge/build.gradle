@@ -1,0 +1,48 @@
+plugins {
+    alias(libs.plugins.forgegradle)
+    alias(libs.plugins.shadow)
+}
+
+base {
+    archivesName = 'historycli-forge'
+}
+
+configurations {
+    shade
+    implementation.extendsFrom shade
+}
+
+repositories {
+    minecraft.mavenizer(it)
+    maven fg.forgeMaven
+    maven fg.minecraftLibsMaven
+}
+
+dependencies {
+    implementation minecraft.dependency("net.minecraftforge:forge:${rootProject.minecraft_version}-${rootProject.forge_version}")
+    annotationProcessor 'net.minecraftforge:eventbus-validator:7.0.1'
+
+    shade project(':common')
+}
+
+processResources {
+    def version = project.version
+    inputs.property 'version', version
+    inputs.property 'mod_id', rootProject.ext.modId
+    inputs.property 'mod_name', rootProject.ext.modName
+    inputs.property 'mod_license', rootProject.mod_license
+    filesMatching('META-INF/mods.toml') {
+        expand 'version': version, 'mod_id': rootProject.ext.modId,
+                'mod_name': rootProject.ext.modName, 'mod_license': rootProject.mod_license
+    }
+}
+
+shadowJar {
+    configurations = [project.configurations.shade]
+    archiveClassifier = ''
+    dependencies {
+        include(dependency('org.anjisuan608.historycli:.*'))
+    }
+}
+
+build.dependsOn shadowJar
