@@ -51,6 +51,9 @@ processResources {
                 'mod_name': rootProject.ext.modName, 'mod_license': rootProject.mod_license
     }
     from(rootProject.file('icon'))
+    from(rootProject.file('lang')) {
+        into('assets/' + rootProject.ext.modId + '/lang')
+    }
 }
 
 shadowJar {

@@ -21,6 +21,7 @@ public final class HistoryStore {
     private int dirtyStart = 0;
     private int maxSize = 500;
     private boolean ignoreDups = true;
+    private boolean recordEnabled = true;
 
     public HistoryStore(Path file) {
         this.file = file;
@@ -43,9 +44,10 @@ public final class HistoryStore {
 
     /**
      * 追加一条命令；连续重复时忽略（类似 bash ignoredups）。
+     * 记录开关（recordEnabled=false）时跳过追加。
      */
     public synchronized void add(String command) {
-        if (command == null || command.isEmpty()) {
+        if (command == null || command.isEmpty() || !recordEnabled) {
             return;
         }
         if (ignoreDups && !buffer.isEmpty() && buffer.get(buffer.size() - 1).equals(command)) {
@@ -53,6 +55,16 @@ public final class HistoryStore {
         }
         buffer.add(command);
         trim();
+    }
+
+    /** 是否记录新命令（默认 true）。 */
+    public synchronized void setRecordEnabled(boolean recordEnabled) {
+        this.recordEnabled = recordEnabled;
+    }
+
+    /** 当前是否记录新命令。 */
+    public synchronized boolean recordEnabled() {
+        return recordEnabled;
     }
 
     public synchronized void setMaxSize(int maxSize) {

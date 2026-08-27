@@ -22,18 +22,31 @@ class HistoryCommandHandlerTest {
         }
 
         @Override
-        protected void sendMessage(String message) {
-            messages.add(message);
+        protected void sendMessage(String key, Object... args) {
+            messages.add(args.length == 0 ? key : key + " " + String.join(" ", toStr(args)));
         }
 
         @Override
-        protected void sendError(String message) {
-            errors.add(message);
+        protected void sendError(String key, Object... args) {
+            errors.add(args.length == 0 ? key : key + " " + String.join(" ", toStr(args)));
+        }
+
+        @Override
+        protected void sendRow(String text) {
+            messages.add(text);
         }
 
         @Override
         protected void executeCommand(String command) {
             executed.add(command);
+        }
+
+        private static String[] toStr(Object[] args) {
+            String[] out = new String[args.length];
+            for (int i = 0; i < args.length; i++) {
+                out[i] = String.valueOf(args[i]);
+            }
+            return out;
         }
     }
 
@@ -82,8 +95,8 @@ class HistoryCommandHandlerTest {
         FakeHandler h = new FakeHandler(store(), true);
         h.handle(new String[]{"-d", "2"});
         assertEquals(1, h.messages.size());
-        assertTrue(h.messages.contains("Deleted history entry 2"));
+        assertTrue(h.messages.contains("historycli.msg.history_deleted 2"));
         h.handle(new String[]{"-c"});
-        assertTrue(h.messages.contains("History cleared"));
+        assertTrue(h.messages.contains("historycli.msg.history_cleared"));
     }
 }

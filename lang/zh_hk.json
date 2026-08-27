@@ -1,0 +1,20 @@
+{
+  "historycli.msg.store_not_init": "歷史儲存未初始化",
+  "historycli.msg.history_cleared": "歷史已清空",
+  "historycli.msg.history_written": "歷史已寫入檔案",
+  "historycli.msg.history_appended": "歷史已附加到檔案",
+  "historycli.msg.history_loaded": "已從檔案載入歷史",
+  "historycli.msg.history_deleted": "已刪除歷史記錄 %s",
+  "historycli.msg.invalid_index": "無效的歷史編號 %s",
+  "historycli.msg.config_reloaded": "設定已重新載入",
+  "historycli.msg.no_match": "沒有符合「%s」的歷史記錄",
+  "historycli.msg.unknown_command": "未知指令",
+  "historycli.msg.no_history": "暫無歷史",
+  "historycli.msg.unsupported_plain": "一般指令不支援此操作",
+  "historycli.help.title": "Lichen History CLI",
+  "historycli.help.usage": "用法：historycli [列表 | <數量> | -c | -w | -a | -r | -d <編號> | reload | help]",
+  "historycli.help.options": "選項：list（預設）| <num>（最近 N 筆）| -c 清空 | -w 寫入 | -a 附加 | -r 讀取 | -d <編號> 刪除 | reload 重新載入 | help | ?",
+  "historycli.help.bang": "展開：!! 上一筆 | !n 第 n 筆 | !-n 倒數第 n 筆 | !string 最近以 string 開頭",
+  "historycli.config.title": "Lichen History CLI",
+  "historycli.config.record": "記錄指令：%s"
+}

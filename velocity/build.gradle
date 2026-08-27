@@ -27,6 +27,7 @@ processResources {
     filesMatching('velocity-plugin.json') {
         expand 'version': version
     }
+    from(rootProject.file('lang'))
 }
 
 shadowJar {

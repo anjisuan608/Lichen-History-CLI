@@ -28,6 +28,9 @@ public final class FabricConfigHelper {
                 if (client.has("history_size")) {
                     store.setMaxSize(client.get("history_size").getAsInt());
                 }
+                if (client.has("record_history")) {
+                    store.setRecordEnabled(client.get("record_history").getAsBoolean());
+                }
             }
         } catch (Exception e) {
             // 配置异常时忽略，使用默认值

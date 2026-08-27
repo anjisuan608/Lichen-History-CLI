@@ -73,16 +73,34 @@ public final class ClientHistoryCommand {
         }
 
         @Override
-        protected void sendMessage(String message) {
+        protected void sendMessage(String key, Object... args) {
             if (source != null) {
-                source.sendFeedback(Component.literal(message));
+                source.sendFeedback(tr(key, args));
             }
         }
 
         @Override
-        protected void sendError(String message) {
+        protected void sendError(String key, Object... args) {
             if (source != null) {
-                source.sendError(Component.literal(message));
+                source.sendError(tr(key, args));
+            }
+        }
+
+        private static Component tr(String key, Object... args) {
+            if (args == null || args.length == 0) {
+                return Component.translatable(key);
+            }
+            java.util.List<Component> list = new java.util.ArrayList<>();
+            for (Object a : args) {
+                list.add(Component.literal(String.valueOf(a)));
+            }
+            return Component.translatable(key, key, list);
+        }
+
+        @Override
+        protected void sendRow(String text) {
+            if (source != null) {
+                source.sendFeedback(Component.literal(text));
             }
         }
 

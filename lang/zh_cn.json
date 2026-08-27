@@ -1,0 +1,20 @@
+{
+  "historycli.msg.store_not_init": "历史存储未初始化",
+  "historycli.msg.history_cleared": "历史已清空",
+  "historycli.msg.history_written": "历史已写入文件",
+  "historycli.msg.history_appended": "历史已追加到文件",
+  "historycli.msg.history_loaded": "已从文件载入历史",
+  "historycli.msg.history_deleted": "已删除历史记录 %s",
+  "historycli.msg.invalid_index": "无效的历史编号 %s",
+  "historycli.msg.config_reloaded": "配置已重载",
+  "historycli.msg.no_match": "没有匹配“%s”的历史记录",
+  "historycli.msg.unknown_command": "未知命令",
+  "historycli.msg.no_history": "暂无历史",
+  "historycli.msg.unsupported_plain": "普通命令不支持该操作",
+  "historycli.help.title": "Lichen History CLI",
+  "historycli.help.usage": "用法：historycli [列表 | <数量> | -c | -w | -a | -r | -d <编号> | reload | help]",
+  "historycli.help.options": "选项：list（默认）| <num>（最近 N 条）| -c 清空 | -w 写入 | -a 追加 | -r 读取 | -d <编号> 删除 | reload 重载 | help | ?",
+  "historycli.help.bang": "展开：!! 上一条 | !n 第 n 条 | !-n 倒数第 n 条 | !string 最近以 string 开头",
+  "historycli.config.title": "Lichen History CLI",
+  "historycli.config.record": "记录命令：%s"
+}

@@ -4,21 +4,26 @@ import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.command.SimpleCommand;
 import com.velocitypowered.api.command.SimpleCommand.Invocation;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.anjisuan608.historycli.HistoryCommandHandler;
 import org.anjisuan608.historycli.HistoryParser;
 import org.anjisuan608.historycli.HistoryStore;
 import org.anjisuan608.historycli.PermissionNode;
+import org.anjisuan608.historycli.velocity.VelocityHistoryPlugin;
+
+import java.util.Map;
 
 /**
  * 普通命令 /historyproxy（别名 historypro/historyp）：bash 标准子集（不含 reload 与 ! 系列）。
- * 逻辑委托给 {@link HistoryCommandHandler}（common）。
  */
 public final class HistoryProxyCommand implements SimpleCommand {
 
+    private final Map<String, String> messages;
     private final VelocityHandler handler;
 
-    public HistoryProxyCommand(HistoryStore store) {
-        this.handler = new VelocityHandler(store, false);
+    public HistoryProxyCommand(HistoryStore store, Map<String, String> messages) {
+        this.messages = messages;
+        this.handler = new VelocityHandler(store, false, messages);
     }
 
     @Override
@@ -37,10 +42,12 @@ public final class HistoryProxyCommand implements SimpleCommand {
 
     private static final class VelocityHandler extends HistoryCommandHandler {
 
+        private final Map<String, String> messages;
         private CommandSource source;
 
-        VelocityHandler(HistoryStore store, boolean allowFull) {
+        VelocityHandler(HistoryStore store, boolean allowFull, Map<String, String> messages) {
             super(store, allowFull);
+            this.messages = messages;
         }
 
         void setSource(CommandSource source) {
@@ -48,16 +55,23 @@ public final class HistoryProxyCommand implements SimpleCommand {
         }
 
         @Override
-        protected void sendMessage(String message) {
+        protected void sendMessage(String key, Object... args) {
             if (source != null) {
-                source.sendMessage(Component.text(message));
+                source.sendMessage(Component.text(VelocityHistoryPlugin.tr(messages, key, args)));
             }
         }
 
         @Override
-        protected void sendError(String message) {
+        protected void sendError(String key, Object... args) {
             if (source != null) {
-                source.sendMessage(Component.text(message));
+                source.sendMessage(Component.text(VelocityHistoryPlugin.tr(messages, key, args)).color(NamedTextColor.RED));
+            }
+        }
+
+        @Override
+        protected void sendRow(String text) {
+            if (source != null) {
+                source.sendMessage(Component.text(text));
             }
         }
 

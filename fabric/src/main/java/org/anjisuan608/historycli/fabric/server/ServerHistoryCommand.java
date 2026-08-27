@@ -23,7 +23,19 @@ public final class ServerHistoryCommand {
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext context, Commands.CommandSelection selection) {
-        if (selection == Commands.CommandSelection.INTEGRATED || HistoryCliFabric.serverStore == null) {
+        boolean integrated = selection == Commands.CommandSelection.INTEGRATED;
+        if (integrated && !HistoryCliFabric.enableIntegratedHistory) {
+            return;
+        }
+        if (integrated) {
+            // 集成服务器：注册到 dispatcher，但 store 在 ServerStarted 时初始化
+            ServerHandler full = new ServerHandler(null, true);
+            ServerHandler plain = new ServerHandler(null, false);
+            dispatcher.register(build(Commands.literal("historycliserver"), full));
+            dispatcher.register(build(Commands.literal("historyserver"), plain));
+            return;
+        }
+        if (HistoryCliFabric.serverStore == null) {
             return;
         }
         ServerHandler full = new ServerHandler(HistoryCliFabric.serverStore, true);
@@ -63,16 +75,28 @@ public final class ServerHistoryCommand {
         }
 
         @Override
-        protected void sendMessage(String message) {
+        protected HistoryStore store() {
+            return HistoryCliFabric.serverStore;
+        }
+
+        @Override
+        protected void sendMessage(String key, Object... args) {
             if (source != null) {
-                source.sendSuccess(() -> Component.literal(message), false);
+                source.sendSuccess(() -> Component.translatable(key, args), false);
             }
         }
 
         @Override
-        protected void sendError(String message) {
+        protected void sendError(String key, Object... args) {
             if (source != null) {
-                source.sendFailure(Component.literal(message));
+                source.sendFailure(Component.translatable(key, args));
+            }
+        }
+
+        @Override
+        protected void sendRow(String text) {
+            if (source != null) {
+                source.sendSuccess(() -> Component.literal(text), false);
             }
         }
 

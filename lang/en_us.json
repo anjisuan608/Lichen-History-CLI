@@ -1,0 +1,20 @@
+{
+  "historycli.msg.store_not_init": "History store not initialized",
+  "historycli.msg.history_cleared": "History cleared",
+  "historycli.msg.history_written": "History written to file",
+  "historycli.msg.history_appended": "History appended to file",
+  "historycli.msg.history_loaded": "History loaded from file",
+  "historycli.msg.history_deleted": "Deleted history entry %s",
+  "historycli.msg.invalid_index": "Invalid history index %s",
+  "historycli.msg.config_reloaded": "Config reloaded",
+  "historycli.msg.no_match": "No matching history entry for '%s'",
+  "historycli.msg.unknown_command": "Unknown command",
+  "historycli.msg.no_history": "No history",
+  "historycli.msg.unsupported_plain": "Unsupported for plain command",
+  "historycli.help.title": "Lichen History CLI",
+  "historycli.help.usage": "Usage: historycli [list | <num> | -c | -w | -a | -r | -d <n> | reload | help]",
+  "historycli.help.options": "Options: list (default) | <num> (last N) | -c clear | -w write | -a append | -r read | -d <n> delete | reload | help | ?",
+  "historycli.help.bang": "Bang: !! last command | !n entry n | !-n last n | !string last matching string",
+  "historycli.config.title": "Lichen History CLI",
+  "historycli.config.record": "Record history: %s"
+}

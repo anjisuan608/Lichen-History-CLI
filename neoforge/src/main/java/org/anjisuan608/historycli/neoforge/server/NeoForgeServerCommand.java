@@ -60,17 +60,35 @@ public final class NeoForgeServerCommand {
         }
 
         @Override
-        protected void sendMessage(String message) {
+        protected void sendMessage(String key, Object... args) {
             if (source != null) {
-                source.sendSuccess(() -> Component.literal(message), false);
+                source.sendSuccess(() -> tr(key, args), false);
             }
         }
 
         @Override
-        protected void sendError(String message) {
+        protected void sendError(String key, Object... args) {
             if (source != null) {
-                source.sendFailure(Component.literal(message));
+                source.sendFailure(tr(key, args));
             }
+        }
+
+        @Override
+        protected void sendRow(String text) {
+            if (source != null) {
+                source.sendSuccess(() -> Component.literal(text), false);
+            }
+        }
+
+        private static Component tr(String key, Object... args) {
+            if (args == null || args.length == 0) {
+                return Component.translatable(key);
+            }
+            java.util.List<Component> list = new java.util.ArrayList<>();
+            for (Object a : args) {
+                list.add(Component.literal(String.valueOf(a)));
+            }
+            return Component.translatable(key, key, list);
         }
 
         @Override

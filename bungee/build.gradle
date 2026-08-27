@@ -28,6 +28,7 @@ processResources {
     filesMatching('plugin.yml') {
         expand 'version': version
     }
+    from(rootProject.file('lang'))
 }
 
 shadowJar {

@@ -69,6 +69,9 @@ public final class HistoryParser {
         switch (first.toLowerCase(Locale.ROOT)) {
             case "reload":
                 return Result.of(Action.RELOAD);
+            case "help":
+            case "?":
+                return Result.of(Action.HELP);
             case "-c":
                 return Result.of(Action.CLEAR);
             case "-w":

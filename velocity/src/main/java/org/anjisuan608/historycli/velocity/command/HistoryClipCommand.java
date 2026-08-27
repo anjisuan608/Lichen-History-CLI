@@ -9,18 +9,22 @@ import org.anjisuan608.historycli.HistoryCommandHandler;
 import org.anjisuan608.historycli.HistoryParser;
 import org.anjisuan608.historycli.HistoryStore;
 import org.anjisuan608.historycli.PermissionNode;
+import org.anjisuan608.historycli.velocity.VelocityHistoryPlugin;
+
+import java.util.Map;
 
 /**
  * 完整命令 /historycliproxy（别名 historyclipro/historyclip）：全部功能（含 reload 与 ! 系列）。
- * 逻辑委托给 {@link HistoryCommandHandler}（common）。
  */
 public final class HistoryClipCommand implements SimpleCommand {
 
     private final ProxyServer server;
+    private final Map<String, String> messages;
     private final VelocityHandler handler;
 
-    public HistoryClipCommand(HistoryStore store, ProxyServer server) {
+    public HistoryClipCommand(HistoryStore store, ProxyServer server, Map<String, String> messages) {
         this.server = server;
+        this.messages = messages;
         this.handler = new VelocityHandler(store, true);
     }
 
@@ -51,16 +55,23 @@ public final class HistoryClipCommand implements SimpleCommand {
         }
 
         @Override
-        protected void sendMessage(String message) {
+        protected void sendMessage(String key, Object... args) {
             if (source != null) {
-                source.sendMessage(Component.text(message));
+                source.sendMessage(Component.text(VelocityHistoryPlugin.tr(messages, key, args)));
             }
         }
 
         @Override
-        protected void sendError(String message) {
+        protected void sendError(String key, Object... args) {
             if (source != null) {
-                source.sendMessage(Component.text(message));
+                source.sendMessage(Component.text(VelocityHistoryPlugin.tr(messages, key, args)).color(net.kyori.adventure.text.format.NamedTextColor.RED));
+            }
+        }
+
+        @Override
+        protected void sendRow(String text) {
+            if (source != null) {
+                source.sendMessage(Component.text(text));
             }
         }
 
