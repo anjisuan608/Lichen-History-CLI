@@ -6,12 +6,10 @@ import net.md_5.bungee.api.plugin.Command;
 import net.md_5.bungee.api.plugin.Listener;
 import net.md_5.bungee.api.plugin.Plugin;
 import net.md_5.bungee.event.EventHandler;
-import org.anjisuan608.historycli.HistoryParser;
+import org.anjisuan608.historycli.HistoryCommandHandler;
 import org.anjisuan608.historycli.HistoryStore;
-import org.anjisuan608.historycli.PermissionNode;
 
 import java.io.File;
-import java.util.List;
 
 public final class BungeeHistoryPlugin extends Plugin implements Listener {
 
@@ -25,20 +23,19 @@ public final class BungeeHistoryPlugin extends Plugin implements Listener {
         store.setMaxSize(0);
         store.read();
 
-        getProxy().getPluginManager().registerCommand(this, new Command("historycliproxy", "", "", "historyclipro", "historyclip") {
-            @Override
-            public void execute(CommandSender sender, String[] args) {
-                handle(sender, args, true);
-            }
-        });
-        getProxy().getPluginManager().registerCommand(this, new Command("historyproxy", "", "", "historypro", "historyp") {
-            @Override
-            public void execute(CommandSender sender, String[] args) {
-                handle(sender, args, false);
-            }
-        });
+        getProxy().getPluginManager().registerCommand(this, bungeeCommand("historycliproxy", true, "historyclipro", "historyclip"));
+        getProxy().getPluginManager().registerCommand(this, bungeeCommand("historyproxy", false, "historypro", "historyp"));
         getProxy().getPluginManager().registerListener(this, this);
         getLogger().info("Lichen History CLI (BungeeCord) loaded");
+    }
+
+    private Command bungeeCommand(String name, boolean allowFull, String... aliases) {
+        return new Command(name, "", aliases) {
+            @Override
+            public void execute(CommandSender sender, String[] args) {
+                new BungeeHandler(BungeeHistoryPlugin.this, store, sender, allowFull).handle(args);
+            }
+        };
     }
 
     @EventHandler
@@ -55,91 +52,34 @@ public final class BungeeHistoryPlugin extends Plugin implements Listener {
         }
     }
 
-    public void handle(CommandSender sender, String[] args, boolean allowFull) {
-        HistoryParser.Result result = HistoryParser.parse(args);
-        if (result == null) {
-            return;
+    private static final class BungeeHandler extends HistoryCommandHandler {
+
+        private final BungeeHistoryPlugin plugin;
+        private final CommandSender sender;
+
+        BungeeHandler(BungeeHistoryPlugin plugin, HistoryStore store, CommandSender sender, boolean allowFull) {
+            super(store, allowFull);
+            this.plugin = plugin;
+            this.sender = sender;
         }
-        String node = PermissionNode.forAction(result.action);
-        if (!sender.hasPermission(node) && !sender.hasPermission(PermissionNode.ALL) && !sender.hasPermission(PermissionNode.USE)) {
-            sender.sendMessage("No permission");
-            return;
+
+        @Override
+        protected void sendMessage(String message) {
+            sender.sendMessage(message);
         }
-        switch (result.action) {
-            case EMPTY:
-            case LIST:
-                list(sender, result.number);
-                break;
-            case EXECUTE:
-                if (!allowFull) {
-                    sender.sendMessage("Unsupported for historyproxy");
-                    break;
-                }
-                execute(sender, result.command);
-                break;
-            case CLEAR:
-                store.reset();
-                sender.sendMessage("History cleared");
-                break;
-            case WRITE:
-                store.write();
-                sender.sendMessage("History written to file");
-                break;
-            case APPEND:
-                store.append();
-                sender.sendMessage("History appended to file");
-                break;
-            case READ:
-                store.read();
-                sender.sendMessage("History loaded from file");
-                break;
-            case DELETE:
-                if (allowFull && store.delete(result.number)) {
-                    sender.sendMessage("Deleted history entry " + result.number);
-                } else {
-                    sender.sendMessage("Invalid history index " + result.number);
-                }
-                break;
-            case RELOAD:
-                if (allowFull) {
-                    store.read();
-                    sender.sendMessage("Config reloaded");
-                } else {
-                    sender.sendMessage("Unsupported for historyproxy");
-                }
-                break;
-            default:
-                sender.sendMessage("Unknown command");
-                break;
+
+        @Override
+        protected void sendError(String message) {
+            sender.sendMessage(message);
+        }
+
+        @Override
+        protected void executeCommand(String command) {
+            plugin.getProxy().getPluginManager().dispatchCommand(sender, command);
         }
     }
 
-    private void execute(CommandSender sender, String bang) {
-        if (bang == null) {
-            return;
-        }
-        String expanded = store.resolve(bang);
-        if (expanded == null) {
-            sender.sendMessage("No matching history entry for '" + bang + "'");
-            return;
-        }
-        store.add(expanded);
-        getProxy().getPluginManager().dispatchCommand(sender, expanded);
-    }
-
-    private void list(CommandSender sender, int count) {
-        List<String> snapshot = store.snapshot();
-        int start = 0;
-        int total = snapshot.size();
-        if (count > 0 && count < total) {
-            start = total - count;
-        }
-        if (total == 0) {
-            sender.sendMessage("No history");
-            return;
-        }
-        for (int i = start; i < total; i++) {
-            sender.sendMessage((i + 1) + "  " + snapshot.get(i));
-        }
+    @Override
+    public void onDisable() {
     }
 }

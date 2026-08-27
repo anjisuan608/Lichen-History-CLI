@@ -1,6 +1,6 @@
 package org.anjisuan608.historycli.bukkit;
 
-import org.anjisuan608.historycli.HistoryParser;
+import org.anjisuan608.historycli.HistoryCommandHandler;
 import org.anjisuan608.historycli.HistoryStore;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
@@ -25,90 +25,21 @@ public final class BukkitHistoryPlugin extends JavaPlugin implements Listener {
         store.setMaxSize(0);
         store.read();
 
-        getCommand("historycliserver").setExecutor(this::handle);
-        getCommand("historyserver").setExecutor(this::handle);
+        getCommand("historycliserver").setExecutor(bukkitCommand(true));
+        getCommand("historyserver").setExecutor(bukkitCommand(false));
         getServer().getPluginManager().registerEvents(this, this);
         getLogger().info("Lichen History CLI (Bukkit) enabled");
     }
 
-    private boolean handle(CommandSender sender, Command command, String label, String[] args) {
-        if (!sender.isOp()) {
-            sender.sendMessage("No permission");
+    private org.bukkit.command.CommandExecutor bukkitCommand(boolean allowFull) {
+        return (sender, command, label, args) -> {
+            if (!sender.isOp()) {
+                sender.sendMessage("No permission");
+                return true;
+            }
+            new BukkitHandler(store, sender, allowFull).handle(args);
             return true;
-        }
-        HistoryParser.Result result = HistoryParser.parse(args);
-        if (result == null) {
-            return true;
-        }
-        switch (result.action) {
-            case EMPTY:
-            case LIST:
-                list(sender, result.number);
-                break;
-            case EXECUTE:
-                execute(sender, result.command);
-                break;
-            case CLEAR:
-                store.reset();
-                sender.sendMessage("History cleared");
-                break;
-            case WRITE:
-                store.write();
-                sender.sendMessage("History written to file");
-                break;
-            case APPEND:
-                store.append();
-                sender.sendMessage("History appended to file");
-                break;
-            case READ:
-                store.read();
-                sender.sendMessage("History loaded from file");
-                break;
-            case DELETE:
-                if (store.delete(result.number)) {
-                    sender.sendMessage("Deleted history entry " + result.number);
-                } else {
-                    sender.sendMessage("Invalid history index " + result.number);
-                }
-                break;
-            case RELOAD:
-                store.read();
-                sender.sendMessage("Config reloaded");
-                break;
-            default:
-                sender.sendMessage("Unknown command");
-                break;
-        }
-        return true;
-    }
-
-    private void execute(CommandSender sender, String bang) {
-        if (bang == null) {
-            return;
-        }
-        String expanded = store.resolve(bang);
-        if (expanded == null) {
-            sender.sendMessage("No matching history entry for '" + bang + "'");
-            return;
-        }
-        store.add(expanded);
-        Bukkit.dispatchCommand(sender, expanded);
-    }
-
-    private void list(CommandSender sender, int count) {
-        java.util.List<String> snapshot = store.snapshot();
-        int start = 0;
-        int total = snapshot.size();
-        if (count > 0 && count < total) {
-            start = total - count;
-        }
-        if (total == 0) {
-            sender.sendMessage("No history");
-            return;
-        }
-        for (int i = start; i < total; i++) {
-            sender.sendMessage((i + 1) + "  " + snapshot.get(i));
-        }
+        };
     }
 
     @EventHandler(priority = EventPriority.LOW)
@@ -128,6 +59,31 @@ public final class BukkitHistoryPlugin extends JavaPlugin implements Listener {
             }
         } else {
             store.add(command);
+        }
+    }
+
+    private static final class BukkitHandler extends HistoryCommandHandler {
+
+        private final CommandSender sender;
+
+        BukkitHandler(HistoryStore store, CommandSender sender, boolean allowFull) {
+            super(store, allowFull);
+            this.sender = sender;
+        }
+
+        @Override
+        protected void sendMessage(String message) {
+            sender.sendMessage(message);
+        }
+
+        @Override
+        protected void sendError(String message) {
+            sender.sendMessage(message);
+        }
+
+        @Override
+        protected void executeCommand(String command) {
+            Bukkit.dispatchCommand(sender, command);
         }
     }
 }
