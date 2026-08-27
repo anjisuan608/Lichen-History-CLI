@@ -14,6 +14,14 @@ loom {
             sourceSet sourceSets.client
         }
     }
+    runs {
+        client {
+            runDir("run/Client")
+        }
+        server {
+            runDir("run/Server")
+        }
+    }
 }
 
 configurations {

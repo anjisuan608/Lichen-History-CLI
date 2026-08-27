@@ -15,9 +15,14 @@ configurations {
 neoForge {
     version = rootProject.neo_version
     runs {
+        client {
+            client()
+            gameDirectory = "run/Client"
+        }
         server {
             server()
             programArgument '--nogui'
+            gameDirectory = "run/Server"
         }
         configureEach {
             systemProperty 'forge.logging.markers', 'REGISTRIES'
