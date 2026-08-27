@@ -5,7 +5,12 @@
   "name": "${mod_name}",
   "description": "Bash-like history command management for Minecraft.",
   "authors": [
-    "anjisuan608"
+    {
+      "name": "anjisuan608",
+      "contact": {
+        "sources": "https://github.com/anjisuan608/Lichen-History-CLI"
+      }
+    }
   ],
   "credits": "luosangguichen",
   "license": "LGPL-3.0-or-later",

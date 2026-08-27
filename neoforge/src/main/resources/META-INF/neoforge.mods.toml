@@ -1,5 +1,5 @@
 modLoader = "javafml"
-loaderVersion = "[2,)"
+loaderVersion = "[1,)"
 license = "${mod_license}"
 
 [[mods]]
@@ -11,17 +11,3 @@ authors = "anjisuan608"
 credits = "luosangguichen"
 iconFile = "icon.png"
 logoFile = "icon.png"
-
-[[dependencies.${mod_id}]]
-modId = "neoforge"
-type = "required"
-versionRange = "[26.1,)"
-ordering = "NONE"
-side = "BOTH"
-
-[[dependencies.${mod_id}]]
-modId = "minecraft"
-type = "required"
-versionRange = "[26.1,26.3)"
-ordering = "NONE"
-side = "BOTH"
