@@ -4,8 +4,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * 命令参数解析：history / historycli 子命令与 bash 历史展开（!n、!!、!-n、!string）。
@@ -51,23 +49,7 @@ public final class HistoryParser {
         }
     }
 
-    private static final Pattern BANG_NUMBER = Pattern.compile("^!(\\d+)$");
-    private static final Pattern BANG_NEGATIVE = Pattern.compile("^-!(\\d+)$");
-    private static final Pattern BANG_PREFIX = Pattern.compile("^!(.+)$");
-
     private HistoryParser() {
-    }
-
-    /**
-     * 解析历史展开表达式（!! / !n / !-n / !string）。
-     *
-     * @return 展开表达式；非 `!` 开头返回 null
-     */
-    public static String parseBangExpression(String input) {
-        if (input == null || !input.startsWith("!")) {
-            return null;
-        }
-        return input;
     }
 
     /**
@@ -113,7 +95,7 @@ public final class HistoryParser {
         }
     }
 
-    /** 便捷方法：返回最近执行的命令（由适配层传入历史缓冲决定）。 */
+    /** 按空白拆分命令参数字符串。 */
     public static List<String> split(String input) {
         if (input == null || input.isEmpty()) {
             return Collections.emptyList();

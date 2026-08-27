@@ -60,10 +60,6 @@ public final class HistoryStore {
         trim();
     }
 
-    public synchronized void setIgnoreDups(boolean ignoreDups) {
-        this.ignoreDups = ignoreDups;
-    }
-
     public synchronized void clear() {
         buffer.clear();
         dirtyStart = 0;

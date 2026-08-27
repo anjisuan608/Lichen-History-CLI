@@ -101,7 +101,11 @@ public abstract class HistoryCommandHandler {
             return;
         }
         store.add(expanded);
-        executeCommand(expanded);
+        executeCommand(stripLeadingSlash(expanded));
+    }
+
+    private static String stripLeadingSlash(String command) {
+        return command != null && command.startsWith("/") ? command.substring(1) : command;
     }
 
     private void list(int count) {

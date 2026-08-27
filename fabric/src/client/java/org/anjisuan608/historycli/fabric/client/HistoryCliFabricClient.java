@@ -13,9 +13,10 @@ public final class HistoryCliFabricClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        Path file = FabricLoader.getInstance().getGameDir().resolve("command_history.txt");
+        Path file = FabricLoader.getInstance().getGameDir().resolve("local/historycli/command_history.log");
+        file.getParent().toFile().mkdirs();
         store = new HistoryStore(file);
-        store.setMaxSize(0); // 跟随原版语义，不额外设上限
+        store.setMaxSize(0); // 本 mod 自持日志，不设额外上限
         store.read();
         FabricConfigHelper.apply(store);
 

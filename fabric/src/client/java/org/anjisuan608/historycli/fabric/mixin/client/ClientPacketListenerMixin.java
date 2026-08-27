@@ -18,7 +18,12 @@ public abstract class ClientPacketListenerMixin {
 
     @Inject(method = "sendCommand", at = @At("HEAD"), cancellable = true)
     private void historycli$expand(String command, CallbackInfo ci) {
-        if (command == null || !command.startsWith("!")) {
+        if (command == null || command.isEmpty()) {
+            return;
+        }
+        if (!command.startsWith("!")) {
+            // 普通命令：记录到本 mod 自持日志
+            org.anjisuan608.historycli.fabric.client.HistoryCliFabricClient.store.add(command);
             return;
         }
         String expanded = ClientHistoryExpander.expand(command);
@@ -31,7 +36,7 @@ public abstract class ClientPacketListenerMixin {
             ci.cancel();
             return;
         }
-        ((ClientPacketListener) (Object) this).sendCommand(expanded);
+        ((ClientPacketListener) (Object) this).sendCommand(expanded.startsWith("/") ? expanded.substring(1) : expanded);
         ci.cancel();
     }
 }
