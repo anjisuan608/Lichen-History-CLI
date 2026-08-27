@@ -26,11 +26,24 @@ public final class HistoryCliForge {
     public static final Logger LOGGER = LoggerFactory.getLogger("lichenhistorycli");
 
     public static HistoryStore serverStore;
+    public static HistoryStore clientStore;
     public static boolean enableIntegratedHistory = false;
 
     public HistoryCliForge() {
         readConfig();
         MinecraftForge.EVENT_BUS.register(this);
+    }
+
+    @SubscribeEvent
+    public void onRegisterClientCommands(net.minecraftforge.client.event.RegisterClientCommandsEvent event) {
+        if (clientStore == null) {
+            Path file = Path.of("local/historycli/command_history.log");
+            file.getParent().toFile().mkdirs();
+            clientStore = new HistoryStore(file);
+            clientStore.setMaxSize(0);
+            clientStore.read();
+        }
+        org.anjisuan608.historycli.forge.client.ForgeClientCommand.register(event.getDispatcher(), event.getBuildContext());
     }
 
     @SubscribeEvent
