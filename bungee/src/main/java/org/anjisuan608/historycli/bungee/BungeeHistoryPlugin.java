@@ -81,18 +81,46 @@ public final class BungeeHistoryPlugin extends Plugin implements Listener {
     private String tr(String key, Object... args) {
         String text = messages.getOrDefault(key, key);
         for (Object a : args) {
-            text = text.replace("%s", String.valueOf(a));
+            text = text.replaceFirst("%s", java.util.regex.Matcher.quoteReplacement(String.valueOf(a)));
         }
         return text;
     }
 
     private Command bungeeCommand(String name, boolean allowFull, String... aliases) {
-        return new Command(name, "", aliases) {
-            @Override
-            public void execute(CommandSender sender, String[] args) {
-                new BungeeHandler(BungeeHistoryPlugin.this, store, sender, allowFull).handle(args);
+        return new HistoryBungeeCommand(name, allowFull, aliases);
+    }
+
+    private final class HistoryBungeeCommand extends Command implements net.md_5.bungee.api.plugin.TabExecutor {
+
+        private final boolean allowFull;
+
+        HistoryBungeeCommand(String name, boolean allowFull, String... aliases) {
+            super(name, "", aliases);
+            this.allowFull = allowFull;
+        }
+
+        @Override
+        public void execute(CommandSender sender, String[] args) {
+            new BungeeHandler(BungeeHistoryPlugin.this, store, sender, allowFull).handle(args);
+        }
+
+        @Override
+        public Iterable<String> onTabComplete(CommandSender sender, String[] args) {
+            java.util.List<String> base = allowFull
+                    ? java.util.List.of("list", "-c", "-w", "-a", "-r", "-d", "reload", "help", "?", "!!")
+                    : java.util.List.of("list", "-c", "-w", "-a", "-r", "help", "?");
+            if (args.length == 0) {
+                return base;
             }
-        };
+            String last = args[args.length - 1];
+            java.util.List<String> out = new java.util.ArrayList<>();
+            for (String b : base) {
+                if (b.startsWith(last)) {
+                    out.add(b);
+                }
+            }
+            return out;
+        }
     }
 
     @EventHandler

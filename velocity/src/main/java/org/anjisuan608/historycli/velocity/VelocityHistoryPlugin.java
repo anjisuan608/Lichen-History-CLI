@@ -97,7 +97,7 @@ public final class VelocityHistoryPlugin {
     public static String tr(Map<String, String> messages, String key, Object... args) {
         String text = messages.getOrDefault(key, key);
         for (Object a : args) {
-            text = text.replace("%s", String.valueOf(a));
+            text = text.replaceFirst("%s", java.util.regex.Matcher.quoteReplacement(String.valueOf(a)));
         }
         return text;
     }

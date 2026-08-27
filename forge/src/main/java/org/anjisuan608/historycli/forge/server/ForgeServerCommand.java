@@ -22,9 +22,13 @@ public final class ForgeServerCommand {
     private ForgeServerCommand() {
     }
 
-    public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext context) {
-        ForgeHandler full = new ForgeHandler(HistoryCliForge.serverStore, true);
-        ForgeHandler plain = new ForgeHandler(HistoryCliForge.serverStore, false);
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext context, boolean integrated) {
+        ForgeHandler full = integrated
+                ? new ForgeHandler(null, true)
+                : new ForgeHandler(HistoryCliForge.serverStore, true);
+        ForgeHandler plain = integrated
+                ? new ForgeHandler(null, false)
+                : new ForgeHandler(HistoryCliForge.serverStore, false);
         dispatcher.register(build(Commands.literal("historycliserver"), full));
         dispatcher.register(build(Commands.literal("historyserver"), plain));
     }
@@ -40,6 +44,7 @@ public final class ForgeServerCommand {
                     return 1;
                 })
                 .then(Commands.argument("rest", StringArgumentType.greedyString())
+                        .suggests(org.anjisuan608.historycli.HistorySuggestions.suggest())
                         .executes(ctx -> {
                             handler.setSource(ctx.getSource());
                             handler.handle(HistoryParser.split(StringArgumentType.getString(ctx, "rest")).toArray(new String[0]));
@@ -57,6 +62,11 @@ public final class ForgeServerCommand {
 
         void setSource(CommandSourceStack source) {
             this.source = source;
+        }
+
+        @Override
+        protected HistoryStore store() {
+            return HistoryCliForge.serverStore;
         }
 
         @Override

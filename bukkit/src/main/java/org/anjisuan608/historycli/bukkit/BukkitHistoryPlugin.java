@@ -39,8 +39,25 @@ public final class BukkitHistoryPlugin extends JavaPlugin implements Listener {
 
         getCommand("historycliserver").setExecutor(bukkitCommand(true));
         getCommand("historyserver").setExecutor(bukkitCommand(false));
+        getCommand("historycliserver").setTabCompleter((s, c, a, args) -> suggest(args));
+        getCommand("historyserver").setTabCompleter((s, c, a, args) -> suggest(args));
         getServer().getPluginManager().registerEvents(this, this);
         getLogger().info("Lichen History CLI (Bukkit) enabled, language=" + language);
+    }
+
+    private java.util.List<String> suggest(String[] args) {
+        java.util.List<String> base = java.util.List.of("list", "-c", "-w", "-a", "-r", "-d", "reload", "help", "?", "!!");
+        if (args.length == 0) {
+            return base;
+        }
+        String last = args[args.length - 1];
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (String b : base) {
+            if (b.startsWith(last)) {
+                out.add(b);
+            }
+        }
+        return out;
     }
 
     private void loadMessages(String language) {
@@ -58,8 +75,8 @@ public final class BukkitHistoryPlugin extends JavaPlugin implements Listener {
 
     private String tr(String key, Object... args) {
         String text = messages.getOrDefault(key, key);
-        for (int i = 0; i < args.length; i++) {
-            text = text.replace("%s", String.valueOf(args[i])); // 只替换第一个对应 %s
+        for (Object a : args) {
+            text = text.replaceFirst("%s", java.util.regex.Matcher.quoteReplacement(String.valueOf(a)));
         }
         return text;
     }

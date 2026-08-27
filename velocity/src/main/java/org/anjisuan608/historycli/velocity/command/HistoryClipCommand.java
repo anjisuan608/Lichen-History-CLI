@@ -35,6 +35,11 @@ public final class HistoryClipCommand implements SimpleCommand {
     }
 
     @Override
+    public java.util.List<String> suggest(Invocation invocation) {
+        return java.util.List.of("list", "-c", "-w", "-a", "-r", "-d", "reload", "help", "?", "!!");
+    }
+
+    @Override
     public boolean hasPermission(Invocation invocation) {
         HistoryParser.Result r = HistoryParser.parse(invocation.arguments());
         HistoryParser.Action action = r == null ? HistoryParser.Action.LIST : r.action;

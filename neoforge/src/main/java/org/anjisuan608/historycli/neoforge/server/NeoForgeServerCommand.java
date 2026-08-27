@@ -22,9 +22,13 @@ public final class NeoForgeServerCommand {
     private NeoForgeServerCommand() {
     }
 
-    public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext context) {
-        NeoForgeHandler full = new NeoForgeHandler(HistoryCliNeoForge.serverStore, true);
-        NeoForgeHandler plain = new NeoForgeHandler(HistoryCliNeoForge.serverStore, false);
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext context, boolean integrated) {
+        NeoForgeHandler full = integrated
+                ? new NeoForgeHandler(null, true)
+                : new NeoForgeHandler(HistoryCliNeoForge.serverStore, true);
+        NeoForgeHandler plain = integrated
+                ? new NeoForgeHandler(null, false)
+                : new NeoForgeHandler(HistoryCliNeoForge.serverStore, false);
         dispatcher.register(build(Commands.literal("historycliserver"), full));
         dispatcher.register(build(Commands.literal("historyserver"), plain));
     }
@@ -40,6 +44,7 @@ public final class NeoForgeServerCommand {
                     return 1;
                 })
                 .then(Commands.argument("rest", StringArgumentType.greedyString())
+                        .suggests(org.anjisuan608.historycli.HistorySuggestions.suggest())
                         .executes(ctx -> {
                             handler.setSource(ctx.getSource());
                             handler.handle(HistoryParser.split(StringArgumentType.getString(ctx, "rest")).toArray(new String[0]));
@@ -57,6 +62,11 @@ public final class NeoForgeServerCommand {
 
         void setSource(CommandSourceStack source) {
             this.source = source;
+        }
+
+        @Override
+        protected HistoryStore store() {
+            return HistoryCliNeoForge.serverStore;
         }
 
         @Override
