@@ -17,6 +17,7 @@ public final class HistoryCliFabricClient implements ClientModInitializer {
         store = new HistoryStore(file);
         store.setMaxSize(0); // 跟随原版语义，不额外设上限
         store.read();
+        FabricConfigHelper.apply(store);
 
         ClientCommandRegistrationCallback.EVENT.register(ClientHistoryCommand::register);
     }

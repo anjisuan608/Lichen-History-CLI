@@ -2,6 +2,7 @@ package org.anjisuan608.historycli.fabric.client;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.client.Minecraft;
@@ -13,8 +14,9 @@ import org.anjisuan608.historycli.HistoryStore;
 import java.util.List;
 
 /**
- * 客户端命令 /historycli（别名 /history）。
- * <p>主命令支持全部子命令；别名 /history 仅 bash 标准子集（不含 reload 与 ! 系列）。</p>
+ * 客户端命令体系。
+ * <p>完整命令：{@code /historycliclient}（别名 historyclic）+ 短名 /historycli（尽力注册，冲突则跳过）。
+ * 普通命令：{@code /historyclient}（别名 historyc）+ 短名 /history（尽力注册，冲突则跳过）。</p>
  */
 public final class ClientHistoryCommand {
 
@@ -22,18 +24,35 @@ public final class ClientHistoryCommand {
     }
 
     public static void register(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandBuildContext context) {
-        dispatcher.register(
-                ClientCommands.literal("historycli")
-                        .executes(ctx -> run(ctx.getSource(), ""))
-                        .then(ClientCommands.argument("rest", StringArgumentType.greedyString())
-                                .executes(ctx -> run(ctx.getSource(), StringArgumentType.getString(ctx, "rest"))))
-        );
-        dispatcher.register(
-                ClientCommands.literal("history")
-                        .executes(ctx -> run(ctx.getSource(), ""))
-                        .then(ClientCommands.argument("rest", StringArgumentType.greedyString())
-                                .executes(ctx -> run(ctx.getSource(), StringArgumentType.getString(ctx, "rest"))))
-        );
+        // 完整命令：historycliclient（主） + 短名 historycli（尽力）
+        dispatcher.register(buildFull("historycliclient"));
+        registerBestEffort(dispatcher, buildFull("historycli"));
+        registerBestEffort(dispatcher, buildFull("historyclic"));
+        // 普通命令：historyclient（主） + 短名 history（尽力）
+        dispatcher.register(buildPlain("historyclient"));
+        registerBestEffort(dispatcher, buildPlain("history"));
+        registerBestEffort(dispatcher, buildPlain("historyc"));
+    }
+
+    private static void registerBestEffort(CommandDispatcher<FabricClientCommandSource> dispatcher,
+                                           LiteralArgumentBuilder<FabricClientCommandSource> command) {
+        if (dispatcher.getRoot().getChild(command.getLiteral()) == null) {
+            dispatcher.register(command);
+        }
+    }
+
+    private static LiteralArgumentBuilder<FabricClientCommandSource> buildFull(String name) {
+        return ClientCommands.literal(name)
+                .executes(ctx -> run(ctx.getSource(), ""))
+                .then(ClientCommands.argument("rest", StringArgumentType.greedyString())
+                        .executes(ctx -> run(ctx.getSource(), StringArgumentType.getString(ctx, "rest"))));
+    }
+
+    private static LiteralArgumentBuilder<FabricClientCommandSource> buildPlain(String name) {
+        return ClientCommands.literal(name)
+                .executes(ctx -> runPlain(ctx.getSource(), ""))
+                .then(ClientCommands.argument("rest", StringArgumentType.greedyString())
+                        .executes(ctx -> runPlain(ctx.getSource(), StringArgumentType.getString(ctx, "rest"))));
     }
 
     private static int run(FabricClientCommandSource source, String rest) {
@@ -42,13 +61,11 @@ public final class ClientHistoryCommand {
             source.sendError(Component.literal("History store not initialized"));
             return 0;
         }
-
         List<String> args = HistoryParser.split(rest);
         HistoryParser.Result result = HistoryParser.parse(args.toArray(new String[0]));
         if (result == null) {
             return 0;
         }
-
         switch (result.action) {
             case EMPTY:
             case LIST:
@@ -86,6 +103,44 @@ public final class ClientHistoryCommand {
                 return 1;
             default:
                 source.sendError(Component.literal("Unknown command"));
+                return 0;
+        }
+    }
+
+    private static int runPlain(FabricClientCommandSource source, String rest) {
+        HistoryStore store = HistoryCliFabricClient.store;
+        if (store == null) {
+            source.sendError(Component.literal("History store not initialized"));
+            return 0;
+        }
+        List<String> args = HistoryParser.split(rest);
+        HistoryParser.Result result = HistoryParser.parse(args.toArray(new String[0]));
+        if (result == null) {
+            return 0;
+        }
+        switch (result.action) {
+            case EMPTY:
+            case LIST:
+                list(source, store, result.number);
+                return 1;
+            case CLEAR:
+                store.reset();
+                source.sendFeedback(Component.literal("History cleared"));
+                return 1;
+            case WRITE:
+                store.write();
+                source.sendFeedback(Component.literal("History written to file"));
+                return 1;
+            case APPEND:
+                store.append();
+                source.sendFeedback(Component.literal("History appended to file"));
+                return 1;
+            case READ:
+                store.read();
+                source.sendFeedback(Component.literal("History loaded from file"));
+                return 1;
+            default:
+                source.sendError(Component.literal("Unsupported for " + "historyclient"));
                 return 0;
         }
     }
