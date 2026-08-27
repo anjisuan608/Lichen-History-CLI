@@ -37,6 +37,11 @@ public abstract class HistoryCommandHandler {
         this.allowFull = allowFull;
     }
 
+    /** 是否为完整命令（支持 reload / -d / ! 系列）。 */
+    public boolean allowFull() {
+        return allowFull;
+    }
+
     /** 鑾峰彇褰撳墠鍘嗗彶瀛樺偍銆傚瓙绫诲彲瑕嗙洊浠ュ疄鐜板欢杩熷垵濮嬪寲锛堝闆嗘垚鏈嶅姟鍣級銆?*/
     protected HistoryStore store() {
         return store;

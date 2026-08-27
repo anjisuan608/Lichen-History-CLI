@@ -53,7 +53,7 @@ public final class ClientHistoryCommand {
                     return 1;
                 })
                 .then(ClientCommands.argument("rest", StringArgumentType.greedyString())
-                        .suggests(org.anjisuan608.historycli.HistorySuggestions.suggest())
+                        .suggests(org.anjisuan608.historycli.HistorySuggestions.suggest(handler.allowFull()))
                         .executes(ctx -> {
                             handler.setSource(ctx.getSource());
                             handler.handle(HistoryParser.split(StringArgumentType.getString(ctx, "rest")).toArray(new String[0]));
