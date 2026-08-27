@@ -17,6 +17,9 @@
     ],
     "client": [
       "org.anjisuan608.historycli.fabric.client.HistoryCliFabricClient"
+    ],
+    "modmenu": [
+      "org.anjisuan608.historycli.fabric.client.ModMenuIntegration"
     ]
   },
   "mixins": [
