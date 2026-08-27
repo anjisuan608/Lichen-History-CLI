@@ -81,22 +81,7 @@ public final class HistoryParser {
 
         // ! 系列展开
         if (first.startsWith("!")) {
-            String expr = first;
-            // historycli !-n
-            if (expr.equals("!!")) {
-                return Result.execute(null); // 上一条由调用方展开
-            }
-            Matcher neg = BANG_NEGATIVE.matcher(expr);
-            if (neg.matches()) {
-                return Result.execute(null);
-            }
-            Matcher num = BANG_NUMBER.matcher(expr);
-            if (num.matches()) {
-                return Result.execute(null);
-            }
-            if (expr.length() > 1) {
-                return Result.execute(null);
-            }
+            return Result.execute(first);
         }
 
         switch (first.toLowerCase(Locale.ROOT)) {

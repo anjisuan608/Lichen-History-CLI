@@ -129,6 +129,43 @@ public final class HistoryStore {
         return true;
     }
 
+    /**
+     * 解析 bash 历史展开表达式（!! / !n / !-n / !string），返回匹配的命令；无匹配返回 null。
+     * 大小写敏感。
+     */
+    public synchronized String resolve(String expr) {
+        if (expr == null || !expr.startsWith("!")) {
+            return null;
+        }
+        if (expr.equals("!") || expr.equals("!!")) {
+            return buffer.isEmpty() ? null : buffer.get(buffer.size() - 1);
+        }
+        if (expr.length() < 2) {
+            return null;
+        }
+        String body = expr.substring(1);
+        if (body.chars().allMatch(Character::isDigit)) {
+            int idx = Integer.parseInt(body);
+            if (idx < 1 || idx > buffer.size()) {
+                return null;
+            }
+            return buffer.get(idx - 1);
+        }
+        if (body.length() > 1 && body.charAt(0) == '-' && body.substring(1).chars().allMatch(Character::isDigit)) {
+            int n = Integer.parseInt(body.substring(1));
+            if (n < 1 || n > buffer.size()) {
+                return null;
+            }
+            return buffer.get(buffer.size() - n);
+        }
+        for (int i = buffer.size() - 1; i >= 0; i--) {
+            if (buffer.get(i).startsWith(body)) {
+                return buffer.get(i);
+            }
+        }
+        return null;
+    }
+
     private void trim() {
         if (maxSize <= 0 || buffer.size() <= maxSize) {
             return;

@@ -1,9 +1,9 @@
 {
   "required": true,
-  "package": "org.anjisuan608.historycli.fabric.mixin.client",
+  "package": "org.anjisuan608.historycli.fabric.mixin.server",
   "compatibilityLevel": "JAVA_25",
-  "client": [
-    "ClientPacketListenerMixin"
+  "mixins": [
+    "DedicatedServerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

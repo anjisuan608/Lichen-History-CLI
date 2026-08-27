@@ -8,7 +8,7 @@
     "anjisuan608"
   ],
   "credits": "luosangguichen",
-  "license": "All Rights Reserved",
+  "license": "LGPL-3.0-or-later",
   "environment": "*",
   "entrypoints": {
     "main": [
@@ -23,6 +23,10 @@
     {
       "config": "lichenhistorycli.client.mixins.json",
       "environment": "client"
+    },
+    {
+      "config": "lichenhistorycli.server.mixins.json",
+      "environment": "server"
     }
   ],
   "depends": {
