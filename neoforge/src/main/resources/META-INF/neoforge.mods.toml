@@ -9,6 +9,8 @@ displayName = "${mod_name}"
 description = "Bash-like history command management for Minecraft."
 authors = "anjisuan608"
 credits = "luosangguichen"
+iconFile = "icon.png"
+logoFile = "icon.png"
 
 [[dependencies.${mod_id}]]
 modId = "neoforge"

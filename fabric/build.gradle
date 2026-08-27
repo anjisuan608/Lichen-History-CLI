@@ -48,4 +48,7 @@ processResources {
     filesMatching('fabric.mod.json') {
         expand 'version': version, 'mod_id': rootProject.ext.modId, 'mod_name': rootProject.ext.modName
     }
+    from(rootProject.file('icon')) {
+        into('assets/' + rootProject.ext.modId)
+    }
 }

@@ -9,6 +9,7 @@
   ],
   "credits": "luosangguichen",
   "license": "LGPL-3.0-or-later",
+  "icon": "assets/lichenhistorycli/icon.png",
   "environment": "*",
   "entrypoints": {
     "main": [
