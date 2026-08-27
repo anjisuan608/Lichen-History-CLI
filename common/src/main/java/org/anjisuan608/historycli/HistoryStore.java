@@ -72,6 +72,10 @@ public final class HistoryStore {
         trim();
     }
 
+    public synchronized int maxSize() {
+        return maxSize;
+    }
+
     public synchronized void clear() {
         buffer.clear();
         dirtyStart = 0;

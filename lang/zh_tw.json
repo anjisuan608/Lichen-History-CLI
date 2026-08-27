@@ -16,5 +16,7 @@
   "historycli.help.options": "選項：list（預設）| <num>（最近 N 筆）| -c 清空 | -w 寫入 | -a 附加 | -r 讀取 | -d <編號> 刪除 | reload 重新載入 | help | ?",
   "historycli.help.bang": "展開：!! 上一筆 | !n 第 n 筆 | !-n 倒數第 n 筆 | !string 最近以 string 開頭",
   "historycli.config.title": "Lichen History CLI",
-  "historycli.config.record": "記錄指令：%s"
+  "historycli.config.record": "記錄指令：%s",
+  "historycli.config.history_size": "歷史上限：%s（0=不限）",
+  "historycli.config.use_integrated": "整合伺服器歷史：%s"
 }

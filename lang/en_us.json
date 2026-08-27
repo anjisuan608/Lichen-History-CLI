@@ -16,5 +16,7 @@
   "historycli.help.options": "Options: list (default) | <num> (last N) | -c clear | -w write | -a append | -r read | -d <n> delete | reload | help | ?",
   "historycli.help.bang": "Bang: !! last command | !n entry n | !-n last n | !string last matching string",
   "historycli.config.title": "Lichen History CLI",
-  "historycli.config.record": "Record history: %s"
+  "historycli.config.record": "Record history: %s",
+  "historycli.config.history_size": "History size: %s (0 = unlimited)",
+  "historycli.config.use_integrated": "Integrated server history: %s"
 }
