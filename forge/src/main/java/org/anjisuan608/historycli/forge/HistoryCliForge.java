@@ -10,7 +10,9 @@ import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.listener.SubscribeEvent;
+import net.minecraftforge.eventbus.api.bus.BusGroup;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.anjisuan608.historycli.HistoryCliConfigIO;
 import org.anjisuan608.historycli.HistoryCliTomlConfigIO;
 import org.anjisuan608.historycli.HistoryCommandHandler;
@@ -35,19 +37,57 @@ public final class HistoryCliForge {
     private static boolean clientRecordEnabled = true;
     private static int clientHistorySize = 0;
 
-    public HistoryCliForge(net.minecraftforge.fml.ModContainer modContainer) {
+    public HistoryCliForge(FMLJavaModLoadingContext context) {
         readConfig();
         MinecraftForge.EVENT_BUS.register(this);
         if (net.minecraftforge.fml.loading.FMLEnvironment.dist.isClient()) {
-            modContainer.registerExtensionPoint(net.minecraftforge.client.ConfigScreenHandler.ConfigScreenFactory.class,
-                    () -> new net.minecraftforge.client.ConfigScreenHandler.ConfigScreenFactory(
-                            parent -> new org.anjisuan608.historycli.forge.client.HistoryConfigScreen(parent)));
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 if (clientStore != null) {
                     clientStore.write();
                 }
             }, "LichenHistoryCLI-Client-Save"));
         }
+    }
+
+    /**
+     * 客户端命令拦截（ClientChatEvent）：普通命令记录；! 系列展开。
+     */
+    @SubscribeEvent
+    public void onClientChat(net.minecraftforge.client.event.ClientChatEvent event) {
+        String command = event.getMessage();
+        String result = interceptClientCommand(command);
+        if (result == null) {
+            event.setMessage("");
+        } else if (!result.equals(command)) {
+            event.setMessage(result);
+        }
+    }
+
+    public static String interceptClientCommand(String command) {
+        if (command == null || command.isEmpty()) {
+            return command;
+        }
+        initClientStore();
+        if (clientStore == null) {
+            return command;
+        }
+        if (command.startsWith("!")) {
+            String expanded = clientStore.resolve(command);
+            if (expanded == null) {
+                net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+                if (mc.gui != null && mc.gui.hud != null) {
+                    mc.gui.hud.getChat().addClientSystemMessage(
+                            net.minecraft.network.chat.Component.translatable(
+                                    org.anjisuan608.historycli.HistoryCommandHandler.Keys.NO_MATCH,
+                                    net.minecraft.network.chat.Component.literal(command)));
+                }
+                return null;
+            }
+            clientStore.add(expanded);
+            return org.anjisuan608.historycli.HistoryCommandHandler.stripLeadingSlash(expanded);
+        }
+        clientStore.add(command);
+        return command;
     }
 
     @SubscribeEvent
