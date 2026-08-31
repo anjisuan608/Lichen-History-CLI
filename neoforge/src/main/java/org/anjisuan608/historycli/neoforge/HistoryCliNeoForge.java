@@ -9,6 +9,8 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.CommandEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
+import net.neoforged.neoforge.client.event.lifecycle.ClientStoppedEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import org.anjisuan608.historycli.HistoryCliConfigIO;
@@ -138,6 +140,22 @@ public final class HistoryCliNeoForge {
         if (serverStore != null) {
             serverStore.write();
             LOGGER.info("Lichen History CLI (NeoForge server) history saved");
+        }
+    }
+
+    @SubscribeEvent
+    public void onClientDisconnect(ClientPlayerNetworkEvent.LoggingOut event) {
+        if (clientStore != null) {
+            clientStore.write();
+            LOGGER.info("Lichen History CLI (NeoForge client) history saved on disconnect");
+        }
+    }
+
+    @SubscribeEvent
+    public void onClientStopped(ClientStoppedEvent event) {
+        if (clientStore != null) {
+            clientStore.write();
+            LOGGER.info("Lichen History CLI (NeoForge client) history saved on stop");
         }
     }
 
