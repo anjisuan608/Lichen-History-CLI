@@ -26,6 +26,7 @@ public abstract class HistoryCommandHandler {
         public static final String HELP_TITLE = "historycli.help.title";
         public static final String HELP_USAGE = "historycli.help.usage";
         public static final String HELP_OPTIONS = "historycli.help.options";
+        public static final String HELP_OPTIONS_PLAIN = "historycli.help.options_plain";
         public static final String HELP_BANG = "historycli.help.bang";
     }
 
@@ -72,6 +73,13 @@ public abstract class HistoryCommandHandler {
         switch (result.action) {
             case EMPTY:
             case LIST:
+                list(result.number);
+                break;
+            case LIST_EXPLICIT:
+                if (!allowFull) {
+                    sendError(Keys.UNSUPPORTED_PLAIN);
+                    break;
+                }
                 list(result.number);
                 break;
             case HELP:
@@ -141,13 +149,16 @@ public abstract class HistoryCommandHandler {
     private void help() {
         sendMessage(Keys.HELP_TITLE);
         sendMessage(Keys.HELP_USAGE);
-        sendMessage(Keys.HELP_OPTIONS);
         if (allowFull) {
+            sendMessage(Keys.HELP_OPTIONS);
             sendMessage(Keys.HELP_BANG);
+        } else {
+            sendMessage(Keys.HELP_OPTIONS_PLAIN);
         }
     }
 
-    private static String stripLeadingSlash(String command) {
+    /** 去掉命令的前导 {@code /}（历史文件存的是带斜杠的原样输入）。 */
+    public static String stripLeadingSlash(String command) {
         return command != null && command.startsWith("/") ? command.substring(1) : command;
     }
 

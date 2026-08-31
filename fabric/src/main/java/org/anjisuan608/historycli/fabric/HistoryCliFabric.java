@@ -45,17 +45,9 @@ public final class HistoryCliFabric implements ModInitializer {
     }
 
     private static void readConfig() {
-        try {
-            Path file = FabricLoader.getInstance().getConfigDir().resolve("lichen-history-cli.json");
-            if (Files.exists(file)) {
-                JsonObject root = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
-                if (root.has("enable_integrated_history")) {
-                    enableIntegratedHistory = root.get("enable_integrated_history").getAsBoolean();
-                }
-            }
-        } catch (Exception e) {
-            // 忽略，使用默认
-        }
+        java.nio.file.Path file = FabricLoader.getInstance().getConfigDir().resolve("lichen-history-cli.json");
+        com.google.gson.JsonObject root = org.anjisuan608.historycli.HistoryCliConfigIO.loadOrCreate(file);
+        enableIntegratedHistory = org.anjisuan608.historycli.HistoryCliConfigIO.getBool(root, null, "enable_integrated_history", false);
     }
 
     private static void onServerStarted(MinecraftServer server) {

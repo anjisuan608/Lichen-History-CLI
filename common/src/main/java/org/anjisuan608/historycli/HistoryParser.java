@@ -13,16 +13,17 @@ public final class HistoryParser {
 
     /** 解析结果动作类型。 */
     public enum Action {
-        LIST,       // 列表
-        CLEAR,      // -c
-        WRITE,      // -w
-        APPEND,     // -a
-        READ,       // -r
-        DELETE,     // -d <编号>
-        RELOAD,     // reload
-        EXECUTE,    // ! 展开执行
-        HELP,       // 帮助/错误
-        EMPTY       // 无参数
+        LIST,          // 列表（默认动作 / <num>）
+        LIST_EXPLICIT, // 显式 list 子命令（仅完整命令可用，同 !!）
+        CLEAR,         // -c
+        WRITE,         // -w
+        APPEND,        // -a
+        READ,          // -r
+        DELETE,        // -d <编号>
+        RELOAD,        // reload
+        EXECUTE,       // ! 展开执行
+        HELP,          // 帮助/错误
+        EMPTY          // 无参数
     }
 
     public static final class Result {
@@ -72,6 +73,8 @@ public final class HistoryParser {
             case "help":
             case "?":
                 return Result.of(Action.HELP);
+            case "list":
+                return Result.of(Action.LIST_EXPLICIT);
             case "-c":
                 return Result.of(Action.CLEAR);
             case "-w":

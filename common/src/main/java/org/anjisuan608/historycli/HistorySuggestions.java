@@ -16,7 +16,7 @@ public final class HistorySuggestions {
     private static final List<String> FULL = List.of(
             "list", "-c", "-w", "-a", "-r", "-d", "reload", "help", "?", "!!");
     private static final List<String> PLAIN = List.of(
-            "list", "-c", "-w", "-a", "-r", "help", "?");
+            "-c", "-w", "-a", "-r", "help", "?");
 
     private HistorySuggestions() {
     }

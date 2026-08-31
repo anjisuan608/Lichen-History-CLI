@@ -39,14 +39,16 @@ public final class BukkitHistoryPlugin extends JavaPlugin implements Listener {
 
         getCommand("historycliserver").setExecutor(bukkitCommand(true));
         getCommand("historyserver").setExecutor(bukkitCommand(false));
-        getCommand("historycliserver").setTabCompleter((s, c, a, args) -> suggest(args));
-        getCommand("historyserver").setTabCompleter((s, c, a, args) -> suggest(args));
+        getCommand("historycliserver").setTabCompleter((s, c, a, args) -> suggest(args, true));
+        getCommand("historyserver").setTabCompleter((s, c, a, args) -> suggest(args, false));
         getServer().getPluginManager().registerEvents(this, this);
         getLogger().info("Lichen History CLI (Bukkit) enabled, language=" + language);
     }
 
-    private java.util.List<String> suggest(String[] args) {
-        java.util.List<String> base = java.util.List.of("list", "-c", "-w", "-a", "-r", "-d", "reload", "help", "?", "!!");
+    private java.util.List<String> suggest(String[] args, boolean allowFull) {
+        java.util.List<String> base = allowFull
+                ? java.util.List.of("list", "-c", "-w", "-a", "-r", "-d", "reload", "help", "?", "!!")
+                : java.util.List.of("-c", "-w", "-a", "-r", "help", "?");
         if (args.length == 0) {
             return base;
         }

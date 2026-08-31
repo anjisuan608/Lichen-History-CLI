@@ -44,6 +44,7 @@ public final class PermissionNode {
             case RELOAD:
                 return RELOAD;
             case LIST:
+            case LIST_EXPLICIT:
             case HELP:
             case EMPTY:
             default:

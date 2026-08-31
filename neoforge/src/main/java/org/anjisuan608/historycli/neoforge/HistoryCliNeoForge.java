@@ -1,7 +1,6 @@
 package org.anjisuan608.historycli.neoforge;
 
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import net.minecraft.commands.Commands;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
@@ -11,13 +10,14 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.CommandEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import org.anjisuan608.historycli.HistoryCliConfigIO;
+import org.anjisuan608.historycli.HistoryCliTomlConfigIO;
+import org.anjisuan608.historycli.HistoryCommandHandler;
 import org.anjisuan608.historycli.HistoryStore;
 import org.anjisuan608.historycli.neoforge.server.NeoForgeServerCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 @Mod("lichenhistorycli")
@@ -29,6 +29,11 @@ public final class HistoryCliNeoForge {
     public static HistoryStore clientStore;
     public static boolean enableIntegratedHistory = false;
 
+    private static boolean serverRecordEnabled = true;
+    private static int serverHistorySize = 0;
+    private static boolean clientRecordEnabled = true;
+    private static int clientHistorySize = 0;
+
     public HistoryCliNeoForge() {
         readConfig();
         NeoForge.EVENT_BUS.register(this);
@@ -36,14 +41,40 @@ public final class HistoryCliNeoForge {
 
     @SubscribeEvent
     public void onRegisterClientCommands(net.neoforged.neoforge.client.event.RegisterClientCommandsEvent event) {
-        if (clientStore == null) {
-            Path file = Path.of("local/historycli/command_history.log");
-            file.getParent().toFile().mkdirs();
-            clientStore = new HistoryStore(file);
-            clientStore.setMaxSize(0);
-            clientStore.read();
-        }
+        initClientStore();
         org.anjisuan608.historycli.neoforge.client.NeoForgeClientCommand.register(event.getDispatcher(), event.getBuildContext());
+    }
+
+    /**
+     * 客户端命令发送拦截（由 mixin 调用）：普通命令记录；! 系列展开。
+     *
+     * @return null 表示取消发送；返回值与入参不同表示以返回值替换发送；相同表示照常发送
+     */
+    public static String interceptClientCommand(String command) {
+        if (command == null || command.isEmpty()) {
+            return command;
+        }
+        initClientStore();
+        if (clientStore == null) {
+            return command;
+        }
+        if (command.startsWith("!")) {
+            String expanded = clientStore.resolve(command);
+            if (expanded == null) {
+                net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+                if (mc.gui != null && mc.gui.hud != null) {
+                    mc.gui.hud.getChat().addClientSystemMessage(
+                            net.minecraft.network.chat.Component.translatable(
+                                    org.anjisuan608.historycli.HistoryCommandHandler.Keys.NO_MATCH,
+                                    net.minecraft.network.chat.Component.literal(command)));
+                }
+                return null;
+            }
+            clientStore.add(expanded);
+            return org.anjisuan608.historycli.HistoryCommandHandler.stripLeadingSlash(expanded);
+        }
+        clientStore.add(command);
+        return command;
     }
 
     @SubscribeEvent
@@ -57,13 +88,7 @@ public final class HistoryCliNeoForge {
             NeoForgeServerCommand.register(event.getDispatcher(), event.getBuildContext(), true);
             return;
         }
-        if (serverStore == null) {
-            Path file = Path.of("local/historycli/command_history.log");
-            serverStore = new HistoryStore(file);
-            serverStore.setMaxSize(0);
-            serverStore.read();
-            LOGGER.info("Lichen History CLI (NeoForge server) loaded, history at {}", file);
-        }
+        initServerStore();
         NeoForgeServerCommand.register(event.getDispatcher(), event.getBuildContext(), false);
     }
 
@@ -87,7 +112,8 @@ public final class HistoryCliNeoForge {
                 Path worldData = server.getWorldPath(LevelResource.ROOT).resolve("data").resolve("lichenhistorycli");
                 worldData.toFile().mkdirs();
                 HistoryStore store = new HistoryStore(worldData.resolve("command_history.log"));
-                store.setMaxSize(0);
+                store.setMaxSize(serverHistorySize);
+                store.setRecordEnabled(serverRecordEnabled);
                 store.read();
                 serverStore = store;
                 LOGGER.info("Lichen History CLI (integrated server) history at {}", worldData.resolve("command_history.log"));
@@ -97,17 +123,39 @@ public final class HistoryCliNeoForge {
         }
     }
 
-    private static void readConfig() {
-        try {
-            Path file = Path.of("config/lichen-history-cli.json");
-            if (Files.exists(file)) {
-                JsonObject root = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonObject();
-                if (root.has("enable_integrated_history")) {
-                    enableIntegratedHistory = root.get("enable_integrated_history").getAsBoolean();
-                }
-            }
-        } catch (Exception e) {
-            // 忽略，使用默认
+    private static void initServerStore() {
+        if (serverStore != null) {
+            return;
         }
+        Path file = Path.of("local/historycli/command_history.log");
+        file.getParent().toFile().mkdirs();
+        HistoryStore store = new HistoryStore(file);
+        store.setMaxSize(serverHistorySize);
+        store.setRecordEnabled(serverRecordEnabled);
+        store.read();
+        serverStore = store;
+        LOGGER.info("Lichen History CLI (NeoForge server) loaded, history at {}", file);
+    }
+
+    private static void initClientStore() {
+        if (clientStore != null) {
+            return;
+        }
+        Path file = Path.of("local/historycli/command_history.log");
+        file.getParent().toFile().mkdirs();
+        HistoryStore store = new HistoryStore(file);
+        store.setMaxSize(clientHistorySize);
+        store.setRecordEnabled(clientRecordEnabled);
+        store.read();
+        clientStore = store;
+    }
+
+    private void readConfig() {
+        JsonObject root = HistoryCliTomlConfigIO.loadOrCreate(Path.of("config/lichen-history-cli.toml"));
+        enableIntegratedHistory = HistoryCliConfigIO.getBool(root, null, "enable_integrated_history", false);
+        serverRecordEnabled = HistoryCliConfigIO.getBool(root, "server", "record_history", true);
+        serverHistorySize = HistoryCliConfigIO.getInt(root, "server", "history_size", 0);
+        clientRecordEnabled = HistoryCliConfigIO.getBool(root, "client", "record_history", true);
+        clientHistorySize = HistoryCliConfigIO.getInt(root, "client", "history_size", 0);
     }
 }

@@ -2,6 +2,9 @@ modLoader = "javafml"
 loaderVersion = "[1,)"
 license = "${mod_license}"
 
+[[mixins]]
+config = "lichenhistorycli.neoforge.mixins.json"
+
 [[mods]]
 modId = "${mod_id}"
 version = "${version}"

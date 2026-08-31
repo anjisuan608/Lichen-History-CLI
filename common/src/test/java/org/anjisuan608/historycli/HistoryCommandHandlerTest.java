@@ -67,6 +67,20 @@ class HistoryCommandHandlerTest {
     }
 
     @Test
+    void fullExplicitList() {
+        FakeHandler h = new FakeHandler(store(), true);
+        h.handle(new String[]{"list"});
+        assertTrue(h.messages.stream().anyMatch(m -> m.equals("3  summon zombie")));
+    }
+
+    @Test
+    void plainExplicitListRejected() {
+        FakeHandler h = new FakeHandler(store(), false);
+        h.handle(new String[]{"list"});
+        assertTrue(h.errors.contains("historycli.msg.unsupported_plain"));
+    }
+
+    @Test
     void fullExecuteStripsLeadingSlash() {
         FakeHandler h = new FakeHandler(store(), true);
         h.handle(new String[]{"!1"});

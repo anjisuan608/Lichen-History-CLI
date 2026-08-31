@@ -34,7 +34,7 @@ public final class HistoryProxyCommand implements SimpleCommand {
 
     @Override
     public java.util.List<String> suggest(Invocation invocation) {
-        return java.util.List.of("list", "-c", "-w", "-a", "-r", "help", "?");
+        return java.util.List.of("-c", "-w", "-a", "-r", "help", "?");
     }
 
     @Override

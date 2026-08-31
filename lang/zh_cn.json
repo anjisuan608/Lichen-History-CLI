@@ -14,6 +14,7 @@
   "historycli.help.title": "Lichen History CLI",
   "historycli.help.usage": "用法：historycli [列表 | <数量> | -c | -w | -a | -r | -d <编号> | reload | help]",
   "historycli.help.options": "选项：list（默认）| <num>（最近 N 条）| -c 清空 | -w 写入 | -a 追加 | -r 读取 | -d <编号> 删除 | reload 重载 | help | ?",
+  "historycli.help.options_plain": "选项：<num>（最近 N 条）| -c 清空 | -w 写入 | -a 追加 | -r 读取 | help | ?",
   "historycli.help.bang": "展开：!! 上一条 | !n 第 n 条 | !-n 倒数第 n 条 | !string 最近以 string 开头",
   "historycli.config.title": "Lichen History CLI",
   "historycli.config.record": "记录命令：%s",

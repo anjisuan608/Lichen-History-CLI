@@ -108,7 +108,7 @@ public final class BungeeHistoryPlugin extends Plugin implements Listener {
         public Iterable<String> onTabComplete(CommandSender sender, String[] args) {
             java.util.List<String> base = allowFull
                     ? java.util.List.of("list", "-c", "-w", "-a", "-r", "-d", "reload", "help", "?", "!!")
-                    : java.util.List.of("list", "-c", "-w", "-a", "-r", "help", "?");
+                    : java.util.List.of("-c", "-w", "-a", "-r", "help", "?");
             if (args.length == 0) {
                 return base;
             }
