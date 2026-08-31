@@ -28,11 +28,14 @@ public final class ServerHistoryCommand {
             return;
         }
         if (integrated) {
-            // 集成服务器：注册到 dispatcher，但 store 在 ServerStarted 时初始化
             ServerHandler full = new ServerHandler(null, true);
             ServerHandler plain = new ServerHandler(null, false);
             dispatcher.register(build(Commands.literal("historycliserver"), full));
+            registerBestEffort(dispatcher, build(Commands.literal("historyclis"), full));
+            registerBestEffort(dispatcher, build(Commands.literal("historycliser"), full));
             dispatcher.register(build(Commands.literal("historyserver"), plain));
+            registerBestEffort(dispatcher, build(Commands.literal("historys"), plain));
+            registerBestEffort(dispatcher, build(Commands.literal("historyser"), plain));
             return;
         }
         if (HistoryCliFabric.serverStore == null) {
@@ -41,7 +44,18 @@ public final class ServerHistoryCommand {
         ServerHandler full = new ServerHandler(HistoryCliFabric.serverStore, true);
         ServerHandler plain = new ServerHandler(HistoryCliFabric.serverStore, false);
         dispatcher.register(build(Commands.literal("historycliserver"), full));
+        registerBestEffort(dispatcher, build(Commands.literal("historyclis"), full));
+        registerBestEffort(dispatcher, build(Commands.literal("historycliser"), full));
         dispatcher.register(build(Commands.literal("historyserver"), plain));
+        registerBestEffort(dispatcher, build(Commands.literal("historys"), plain));
+        registerBestEffort(dispatcher, build(Commands.literal("historyser"), plain));
+    }
+
+    private static void registerBestEffort(CommandDispatcher<CommandSourceStack> dispatcher,
+                                           LiteralArgumentBuilder<CommandSourceStack> command) {
+        if (dispatcher.getRoot().getChild(command.getLiteral()) == null) {
+            dispatcher.register(command);
+        }
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> build(

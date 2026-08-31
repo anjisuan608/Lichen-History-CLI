@@ -103,6 +103,10 @@ public final class HistoryStore {
             return;
         }
         try {
+            Path parent = file.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
             Files.write(file, buffer, StandardCharsets.UTF_8,
                     StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
             dirtyStart = buffer.size();
@@ -117,6 +121,10 @@ public final class HistoryStore {
             return;
         }
         try {
+            Path parent = file.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
             List<String> pending = new ArrayList<>(buffer.subList(Math.min(dirtyStart, buffer.size()), buffer.size()));
             Files.write(file, pending, StandardCharsets.UTF_8,
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE);

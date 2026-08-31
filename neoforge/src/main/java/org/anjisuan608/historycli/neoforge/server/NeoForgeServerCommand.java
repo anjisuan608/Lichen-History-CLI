@@ -30,7 +30,18 @@ public final class NeoForgeServerCommand {
                 ? new NeoForgeHandler(null, false)
                 : new NeoForgeHandler(HistoryCliNeoForge.serverStore, false);
         dispatcher.register(build(Commands.literal("historycliserver"), full));
+        registerBestEffort(dispatcher, build(Commands.literal("historyclis"), full));
+        registerBestEffort(dispatcher, build(Commands.literal("historycliser"), full));
         dispatcher.register(build(Commands.literal("historyserver"), plain));
+        registerBestEffort(dispatcher, build(Commands.literal("historys"), plain));
+        registerBestEffort(dispatcher, build(Commands.literal("historyser"), plain));
+    }
+
+    private static void registerBestEffort(CommandDispatcher<CommandSourceStack> dispatcher,
+                                           LiteralArgumentBuilder<CommandSourceStack> command) {
+        if (dispatcher.getRoot().getChild(command.getLiteral()) == null) {
+            dispatcher.register(command);
+        }
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> build(

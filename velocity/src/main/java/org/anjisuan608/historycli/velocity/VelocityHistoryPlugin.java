@@ -40,6 +40,11 @@ public final class VelocityHistoryPlugin {
         this.store = new HistoryStore(file);
         this.store.setMaxSize(0);
         this.store.read();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            if (store != null) {
+                store.write();
+            }
+        }, "LichenHistoryCLI-Proxy-Save"));
     }
 
     @Subscribe

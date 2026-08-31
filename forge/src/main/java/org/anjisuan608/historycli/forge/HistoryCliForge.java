@@ -8,6 +8,7 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.CommandEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.listener.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.anjisuan608.historycli.HistoryCliConfigIO;
@@ -38,10 +39,14 @@ public final class HistoryCliForge {
         readConfig();
         MinecraftForge.EVENT_BUS.register(this);
         if (net.minecraftforge.fml.loading.FMLEnvironment.dist.isClient()) {
-            // 模组列表界面（内置菜单）的「配置」按钮入口
             modContainer.registerExtensionPoint(net.minecraftforge.client.ConfigScreenHandler.ConfigScreenFactory.class,
                     () -> new net.minecraftforge.client.ConfigScreenHandler.ConfigScreenFactory(
                             parent -> new org.anjisuan608.historycli.forge.client.HistoryConfigScreen(parent)));
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                if (clientStore != null) {
+                    clientStore.write();
+                }
+            }, "LichenHistoryCLI-Client-Save"));
         }
     }
 
@@ -94,6 +99,14 @@ public final class HistoryCliForge {
             } catch (Exception e) {
                 LOGGER.warn("Failed to init integrated history", e);
             }
+        }
+    }
+
+    @SubscribeEvent
+    public void onServerStopping(ServerStoppingEvent event) {
+        if (serverStore != null) {
+            serverStore.write();
+            LOGGER.info("Lichen History CLI (Forge server) history saved");
         }
     }
 

@@ -171,5 +171,9 @@ public final class BungeeHistoryPlugin extends Plugin implements Listener {
 
     @Override
     public void onDisable() {
+        if (store != null) {
+            store.write();
+            getLogger().info("Lichen History CLI (BungeeCord) history saved");
+        }
     }
 }

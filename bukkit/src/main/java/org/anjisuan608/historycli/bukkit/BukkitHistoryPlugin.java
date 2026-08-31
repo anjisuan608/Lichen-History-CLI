@@ -45,6 +45,14 @@ public final class BukkitHistoryPlugin extends JavaPlugin implements Listener {
         getLogger().info("Lichen History CLI (Bukkit) enabled, language=" + language);
     }
 
+    @Override
+    public void onDisable() {
+        if (store != null) {
+            store.write();
+            getLogger().info("Lichen History CLI (Bukkit) history saved");
+        }
+    }
+
     private java.util.List<String> suggest(String[] args, boolean allowFull) {
         java.util.List<String> base = allowFull
                 ? java.util.List.of("list", "-c", "-w", "-a", "-r", "-d", "reload", "help", "?", "!!")

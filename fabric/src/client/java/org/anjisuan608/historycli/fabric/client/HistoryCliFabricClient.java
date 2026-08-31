@@ -21,5 +21,11 @@ public final class HistoryCliFabricClient implements ClientModInitializer {
         FabricConfigHelper.apply(store);
 
         ClientCommandRegistrationCallback.EVENT.register(ClientHistoryCommand::register);
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            if (store != null) {
+                store.write();
+            }
+        }, "LichenHistoryCLI-Client-Save"));
     }
 }

@@ -42,6 +42,14 @@ public final class HistoryCliFabric implements ModInitializer {
         }
 
         ServerLifecycleEvents.SERVER_STARTED.register(HistoryCliFabric::onServerStarted);
+        ServerLifecycleEvents.SERVER_STOPPING.register(HistoryCliFabric::onServerStopping);
+    }
+
+    private static void onServerStopping(MinecraftServer server) {
+        if (serverStore != null) {
+            serverStore.write();
+            LOGGER.info("Lichen History CLI (Fabric server) history saved");
+        }
     }
 
     private static void readConfig() {

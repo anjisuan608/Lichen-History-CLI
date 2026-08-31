@@ -10,6 +10,7 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.CommandEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import org.anjisuan608.historycli.HistoryCliConfigIO;
 import org.anjisuan608.historycli.HistoryCliTomlConfigIO;
 import org.anjisuan608.historycli.HistoryCommandHandler;
@@ -38,9 +39,13 @@ public final class HistoryCliNeoForge {
         readConfig();
         NeoForge.EVENT_BUS.register(this);
         if (net.neoforged.fml.loading.FMLEnvironment.getDist().isClient()) {
-            // 模组列表界面（内置菜单）的「配置」按钮入口
             modContainer.registerExtensionPoint(net.neoforged.neoforge.client.gui.IConfigScreenFactory.class,
                     (mc, parent) -> new org.anjisuan608.historycli.neoforge.client.HistoryConfigScreen(parent));
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                if (clientStore != null) {
+                    clientStore.write();
+                }
+            }, "LichenHistoryCLI-Client-Save"));
         }
     }
 
@@ -125,6 +130,14 @@ public final class HistoryCliNeoForge {
             } catch (Exception e) {
                 LOGGER.warn("Failed to init integrated history", e);
             }
+        }
+    }
+
+    @SubscribeEvent
+    public void onServerStopping(ServerStoppingEvent event) {
+        if (serverStore != null) {
+            serverStore.write();
+            LOGGER.info("Lichen History CLI (NeoForge server) history saved");
         }
     }
 
