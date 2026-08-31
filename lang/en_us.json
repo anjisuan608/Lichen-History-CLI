@@ -19,5 +19,6 @@
   "historycli.config.title": "Lichen History CLI",
   "historycli.config.record": "Record history: %s",
   "historycli.config.history_size": "History size: %s (0 = unlimited)",
-  "historycli.config.use_integrated": "Integrated server history: %s"
+  "historycli.config.use_integrated": "Integrated server history: %s",
+  "historycli.config.history_size_label": "History size (0 = unlimited)"
 }

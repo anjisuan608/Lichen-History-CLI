@@ -92,6 +92,47 @@ public final class HistoryCliTomlConfigIO {
         return root;
     }
 
+    /**
+     * 将根对象写回 TOML（标量在前，分节在后），保留解析结果中的全部字段。
+     */
+    public static void save(Path file, JsonObject root) {
+        try {
+            StringBuilder sb = new StringBuilder("# Lichen History CLI 配置\n");
+            for (Map.Entry<String, JsonElement> e : root.entrySet()) {
+                if (!e.getValue().isJsonObject()) {
+                    sb.append(e.getKey()).append(" = ").append(toTomlValue(e.getValue())).append('\n');
+                }
+            }
+            for (Map.Entry<String, JsonElement> e : root.entrySet()) {
+                if (e.getValue().isJsonObject()) {
+                    sb.append('\n').append('[').append(e.getKey()).append("]\n");
+                    for (Map.Entry<String, JsonElement> kv : e.getValue().getAsJsonObject().entrySet()) {
+                        if (!kv.getValue().isJsonObject()) {
+                            sb.append(kv.getKey()).append(" = ").append(toTomlValue(kv.getValue())).append('\n');
+                        }
+                    }
+                }
+            }
+            Path parent = file.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Files.writeString(file, sb.toString(), StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static String toTomlValue(JsonElement value) {
+        if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean()) {
+            return value.getAsString();
+        }
+        if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber()) {
+            return value.getAsString();
+        }
+        String s = value.getAsString();
+        return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    }
+
     private static String stripComment(String line) {
         boolean inString = false;
         for (int i = 0; i < line.length(); i++) {

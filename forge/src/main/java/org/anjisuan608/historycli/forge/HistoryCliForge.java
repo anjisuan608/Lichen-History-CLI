@@ -34,9 +34,15 @@ public final class HistoryCliForge {
     private static boolean clientRecordEnabled = true;
     private static int clientHistorySize = 0;
 
-    public HistoryCliForge() {
+    public HistoryCliForge(net.minecraftforge.fml.ModContainer modContainer) {
         readConfig();
         MinecraftForge.EVENT_BUS.register(this);
+        if (net.minecraftforge.fml.loading.FMLEnvironment.dist.isClient()) {
+            // 模组列表界面（内置菜单）的「配置」按钮入口
+            modContainer.registerExtensionPoint(net.minecraftforge.client.ConfigScreenHandler.ConfigScreenFactory.class,
+                    () -> new net.minecraftforge.client.ConfigScreenHandler.ConfigScreenFactory(
+                            parent -> new org.anjisuan608.historycli.forge.client.HistoryConfigScreen(parent)));
+        }
     }
 
     @SubscribeEvent

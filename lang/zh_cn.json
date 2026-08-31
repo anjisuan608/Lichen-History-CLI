@@ -19,5 +19,6 @@
   "historycli.config.title": "Lichen History CLI",
   "historycli.config.record": "记录命令：%s",
   "historycli.config.history_size": "历史上限：%s（0=不限）",
-  "historycli.config.use_integrated": "集成服务器历史：%s"
+  "historycli.config.use_integrated": "集成服务器历史：%s",
+  "historycli.config.history_size_label": "历史上限（0=不限）"
 }

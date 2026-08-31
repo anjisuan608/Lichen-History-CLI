@@ -1,22 +1,20 @@
-package org.anjisuan608.historycli.fabric.client;
+package org.anjisuan608.historycli.forge.client;
 
 import com.google.gson.JsonObject;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import org.anjisuan608.historycli.HistoryCliTomlConfigIO;
 import org.anjisuan608.historycli.HistoryStore;
-import org.anjisuan608.historycli.fabric.HistoryCliFabric;
+import org.anjisuan608.historycli.forge.HistoryCliForge;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Mod Menu 配置界面：记录命令（开关）、历史上限（输入框）、集成服务器历史（开关），修改持久化。
+ * Forge 模组列表配置界面：记录命令（开关）、历史上限（输入框）、集成服务器历史（开关），修改持久化到 TOML。
  */
 public final class HistoryConfigScreen extends Screen {
 
@@ -30,15 +28,15 @@ public final class HistoryConfigScreen extends Screen {
     public HistoryConfigScreen(Screen parent) {
         super(Component.translatable("historycli.config.title"));
         this.parent = parent;
-        this.configFile = FabricLoader.getInstance().getConfigDir().resolve("lichen-history-cli.json");
-        HistoryStore store = HistoryCliFabricClient.store;
+        this.configFile = Path.of("config/lichen-history-cli.toml");
+        HistoryStore store = HistoryCliForge.clientStore;
         this.record = store != null && store.recordEnabled();
         this.historySize = store != null ? store.maxSize() : 0;
-        this.enableIntegrated = HistoryCliFabric.enableIntegratedHistory;
+        this.enableIntegrated = HistoryCliForge.enableIntegratedHistory;
     }
 
     private static HistoryStore historyStore() {
-        return HistoryCliFabricClient.store;
+        return HistoryCliForge.clientStore;
     }
 
     @Override
@@ -69,7 +67,7 @@ public final class HistoryConfigScreen extends Screen {
                 Component.translatable("historycli.config.use_integrated", fmt(enableIntegrated)),
                 btn -> {
                     enableIntegrated = !enableIntegrated;
-                    HistoryCliFabric.enableIntegratedHistory = enableIntegrated;
+                    HistoryCliForge.enableIntegratedHistory = enableIntegrated;
                     btn.setMessage(Component.translatable("historycli.config.use_integrated", fmt(enableIntegrated)));
                     saveConfig();
                 })
@@ -117,22 +115,12 @@ public final class HistoryConfigScreen extends Screen {
     }
 
     private void saveConfig() {
-        try {
-            JsonObject root;
-            JsonObject client;
-            if (Files.exists(configFile)) {
-                root = com.google.gson.JsonParser.parseString(Files.readString(configFile, StandardCharsets.UTF_8)).getAsJsonObject();
-                client = root.has("client") ? root.getAsJsonObject("client") : new JsonObject();
-            } else {
-                root = new JsonObject();
-                client = new JsonObject();
-                root.add("client", client);
-            }
-            client.addProperty("record_history", historyStore() != null && historyStore().recordEnabled());
-            client.addProperty("history_size", historySize);
-            root.addProperty("enable_integrated_history", enableIntegrated);
-            Files.writeString(configFile, root.toString(), StandardCharsets.UTF_8);
-        } catch (Exception ignored) {
-        }
+        JsonObject root = HistoryCliTomlConfigIO.loadOrCreate(configFile);
+        JsonObject client = root.has("client") ? root.getAsJsonObject("client") : new JsonObject();
+        client.addProperty("record_history", historyStore() != null && historyStore().recordEnabled());
+        client.addProperty("history_size", historySize);
+        root.add("client", client);
+        root.addProperty("enable_integrated_history", enableIntegrated);
+        HistoryCliTomlConfigIO.save(configFile, root);
     }
 }

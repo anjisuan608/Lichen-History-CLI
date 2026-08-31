@@ -34,9 +34,14 @@ public final class HistoryCliNeoForge {
     private static boolean clientRecordEnabled = true;
     private static int clientHistorySize = 0;
 
-    public HistoryCliNeoForge() {
+    public HistoryCliNeoForge(net.neoforged.fml.ModContainer modContainer) {
         readConfig();
         NeoForge.EVENT_BUS.register(this);
+        if (net.neoforged.fml.loading.FMLEnvironment.getDist().isClient()) {
+            // 模组列表界面（内置菜单）的「配置」按钮入口
+            modContainer.registerExtensionPoint(net.neoforged.neoforge.client.gui.IConfigScreenFactory.class,
+                    (mc, parent) -> new org.anjisuan608.historycli.neoforge.client.HistoryConfigScreen(parent));
+        }
     }
 
     @SubscribeEvent
