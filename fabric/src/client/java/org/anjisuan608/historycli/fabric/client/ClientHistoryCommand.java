@@ -49,15 +49,14 @@ public final class ClientHistoryCommand {
         return builder
                 .executes(ctx -> {
                     handler.setSource(ctx.getSource());
-                    handler.handle(new String[0]);
-                    return 1;
+                    return handler.handle(new String[0]) ? 1 : 0;
                 })
                 .then(ClientCommands.argument("rest", StringArgumentType.greedyString())
                         .suggests(org.anjisuan608.historycli.HistorySuggestions.suggest(handler.allowFull()))
                         .executes(ctx -> {
                             handler.setSource(ctx.getSource());
-                            handler.handle(HistoryParser.split(StringArgumentType.getString(ctx, "rest")).toArray(new String[0]));
-                            return 1;
+                            return handler.handle(HistoryParser.split(StringArgumentType.getString(ctx, "rest")).toArray(new String[0]))
+                                    ? 1 : 0;
                         }));
     }
 
@@ -74,6 +73,16 @@ public final class ClientHistoryCommand {
         }
 
         @Override
+        protected HistoryStore store() {
+            return HistoryCliFabricClient.store;
+        }
+
+        @Override
+        protected boolean reloadConfig() {
+            return FabricConfigHelper.apply(HistoryCliFabricClient.store);
+        }
+
+        @Override
         protected void sendMessage(String key, Object... args) {
             if (source != null) {
                 source.sendFeedback(tr(key, args));
@@ -87,15 +96,20 @@ public final class ClientHistoryCommand {
             }
         }
 
+        /**
+         * 把实参转成字符串字面量后展开传入。
+         * <p>之前写成 {@code Component.translatable(key, key, args...)}——把 key 自身当成了第一个
+         * {@code %s} 实参，用户会看到「Deleted history entry historycli.msg.history_deleted」。</p>
+         */
         private static Component tr(String key, Object... args) {
             if (args == null || args.length == 0) {
                 return Component.translatable(key);
             }
-            java.util.List<Component> list = new java.util.ArrayList<>();
-            for (Object a : args) {
-                list.add(Component.literal(String.valueOf(a)));
+            Object[] converted = new Object[args.length];
+            for (int i = 0; i < args.length; i++) {
+                converted[i] = Component.literal(String.valueOf(args[i]));
             }
-            return Component.translatable(key, key, list);
+            return Component.translatable(key, converted);
         }
 
         @Override

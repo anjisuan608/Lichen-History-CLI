@@ -5,6 +5,12 @@ plugins {
 dependencies {
     compileOnly 'com.mojang:brigadier:1.2.9'
     compileOnly 'com.google.code.gson:gson:2.11.0'
+
+    // 测试需要在测试类路径上真正带上 compileOnly 的依赖，
+    // 否则 HistoryCliConfigIO / HistoryCliTomlConfigIO / HistorySuggestions 的用例会 NoClassDefFoundError。
+    testImplementation 'com.mojang:brigadier:1.2.9'
+    testImplementation 'com.google.code.gson:gson:2.11.0'
+
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

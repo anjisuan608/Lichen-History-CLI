@@ -9,7 +9,58 @@ description: Bash-like history command management for Minecraft.
 commands:
   historycliserver:
     description: Full history server command
-    usage: /historycliserver [args]
+    usage: /historycliserver [list | <num> | -c | -w | -a | -r | -d <n> | reload | help | !...]
+    aliases:
+      - historyclis
+      - historycliser
   historyserver:
     description: History server command (bash subset)
-    usage: /historyserver [args]
+    usage: /historyserver [<num> | -c | -w | -a | -r | help]
+    aliases:
+      - historys
+      - historyser
+permissions:
+  # 命令入口权限：无此权限者看不到/用不了本 mod 的命令
+  historycli.use:
+    description: View the command history
+    default: op
+  # 子命令级权限（代码内按动作判定；op 默认全通过）
+  historycli.list:
+    description: List history entries
+    default: op
+    children:
+      historycli.use: true
+  historycli.clear:
+    description: Clear history (-c)
+    default: op
+  historycli.write:
+    description: Write history to file (-w)
+    default: op
+  historycli.append:
+    description: Append history to file (-a)
+    default: op
+  historycli.read:
+    description: Read history from file (-r)
+    default: op
+  historycli.delete:
+    description: Delete a history entry (-d)
+    default: op
+  historycli.execute:
+    description: Re-run a command via ! expansion
+    default: op
+  historycli.reload:
+    description: Reload configuration
+    default: op
+  historycli.*:
+    description: All Lichen History CLI permissions
+    default: op
+    children:
+      historycli.use: true
+      historycli.list: true
+      historycli.clear: true
+      historycli.write: true
+      historycli.append: true
+      historycli.read: true
+      historycli.delete: true
+      historycli.execute: true
+      historycli.reload: true

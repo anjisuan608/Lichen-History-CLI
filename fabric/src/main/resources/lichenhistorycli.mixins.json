@@ -2,7 +2,9 @@
   "required": true,
   "package": "org.anjisuan608.historycli.fabric.mixin",
   "compatibilityLevel": "JAVA_25",
-  "mixins": [],
+  "mixins": [
+    "server.ServerGamePacketListenerMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   },

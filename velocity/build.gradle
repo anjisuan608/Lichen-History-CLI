@@ -30,6 +30,13 @@ processResources {
     from(rootProject.file('lang'))
 }
 
+// 每个模块只发布 shadowJar 一份产物：普通 jar 与 shadowJar 的默认文件名相同，
+// 谁后执行谁覆盖，可能导致发布出缺少 common 的空壳 jar。这里直接禁用普通 jar，
+// 让 build/libs 里只留下一个可发布的 jar。
+jar {
+    enabled = false
+}
+
 shadowJar {
     configurations = [project.configurations.shade]
     archiveClassifier = ''

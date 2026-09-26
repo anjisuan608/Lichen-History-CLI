@@ -21,9 +21,11 @@ public final class ClientHistoryExpander {
             return null;
         }
         String resolved = store.resolve(bang);
-        if (resolved != null) {
-            store.add(resolved); // 展开后的命令入史
+        if (resolved == null || resolved.startsWith("!")) {
+            // 无匹配；或匹配到历史里的字面量 `!!` 行——执行它会再次进入展开逻辑造成死循环，按无匹配处理。
+            return null;
         }
+        store.add(resolved); // 展开后的命令入史
         return resolved;
     }
 }

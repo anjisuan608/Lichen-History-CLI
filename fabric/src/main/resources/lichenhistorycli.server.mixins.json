@@ -3,8 +3,7 @@
   "package": "org.anjisuan608.historycli.fabric.mixin.server",
   "compatibilityLevel": "JAVA_25",
   "mixins": [
-    "DedicatedServerMixin",
-    "ServerGamePacketListenerMixin"
+    "DedicatedServerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

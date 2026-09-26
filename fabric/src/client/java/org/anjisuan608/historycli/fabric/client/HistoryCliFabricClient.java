@@ -17,9 +17,8 @@ public final class HistoryCliFabricClient implements ClientModInitializer {
         Path file = FabricLoader.getInstance().getGameDir().resolve("local/historycli/command_history.log");
         file.getParent().toFile().mkdirs();
         store = new HistoryStore(file);
-        store.setMaxSize(0);
-        store.read();
         FabricConfigHelper.apply(store);
+        store.read();
 
         ClientCommandRegistrationCallback.EVENT.register(ClientHistoryCommand::register);
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {

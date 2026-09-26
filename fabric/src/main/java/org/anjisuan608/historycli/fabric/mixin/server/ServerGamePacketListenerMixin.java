@@ -17,7 +17,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ServerGamePacketListenerImpl.class)
 public abstract class ServerGamePacketListenerMixin {
 
-    private void record(String command) {
+    /**
+     * 录入历史。
+     * <p>以 {@code !} 开头的输入是「未被展开的历史展开请求」（例如玩家敲 {@code /!!}），
+     * 它在本平台不会被执行，因此不入史；否则历史里会出现字面量 {@code !!} 行，
+     * 之后 {@code !!} 展开会命中它。代价：以 {@code !} 开头的**真实**命令也不会被记录（见 AGENTS.md 已知限制）。</p>
+     */
+    private void historycli$record(String command) {
         if (command == null || command.isEmpty() || command.startsWith("!")) {
             return;
         }
@@ -29,11 +35,11 @@ public abstract class ServerGamePacketListenerMixin {
 
     @Inject(method = "handleChatCommand", at = @At("HEAD"))
     private void historycli$recordUnsignedCommand(ServerboundChatCommandPacket packet, CallbackInfo ci) {
-        record(packet.command());
+        historycli$record(packet.command());
     }
 
     @Inject(method = "handleSignedChatCommand", at = @At("HEAD"))
     private void historycli$recordSignedCommand(ServerboundChatCommandSignedPacket packet, CallbackInfo ci) {
-        record(packet.command());
+        historycli$record(packet.command());
     }
 }

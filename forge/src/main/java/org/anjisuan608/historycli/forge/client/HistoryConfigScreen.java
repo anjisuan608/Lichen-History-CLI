@@ -28,10 +28,18 @@ public final class HistoryConfigScreen extends Screen {
     public HistoryConfigScreen(Screen parent) {
         super(Component.translatable("historycli.config.title"));
         this.parent = parent;
-        this.configFile = Path.of("config/lichen-history-cli.toml");
+        this.configFile = HistoryCliForge.configFile();
         HistoryStore store = HistoryCliForge.clientStore;
-        this.record = store != null && store.recordEnabled();
-        this.historySize = store != null ? store.maxSize() : 0;
+        if (store != null) {
+            this.record = store.recordEnabled();
+            this.historySize = store.maxSize();
+        } else {
+            // 存储尚未创建（如从模组列表直接打开）时以磁盘配置为准，
+            // 否则会把默认值 false/0 在下次保存时写回配置。
+            JsonObject root = HistoryCliTomlConfigIO.loadOrCreate(configFile);
+            this.record = org.anjisuan608.historycli.HistoryCliConfigIO.getBool(root, "client", "record_history", true);
+            this.historySize = org.anjisuan608.historycli.HistoryCliConfigIO.getInt(root, "client", "history_size", 500);
+        }
         this.enableIntegrated = HistoryCliForge.enableIntegratedHistory;
     }
 
@@ -74,10 +82,7 @@ public final class HistoryConfigScreen extends Screen {
                 .bounds(cx - 150, cy + 4, 300, 20)
                 .build());
 
-        addRenderableWidget(Button.builder(Component.translatable("gui.done"), btn -> {
-                    persistSize();
-                    onClose();
-                })
+        addRenderableWidget(Button.builder(Component.translatable("gui.done"), btn -> onClose())
                 .bounds(cx - 100, cy + 36, 200, 20)
                 .build());
     }
@@ -93,6 +98,9 @@ public final class HistoryConfigScreen extends Screen {
     }
 
     private void persistSize() {
+        if (sizeBox == null) {
+            return;
+        }
         try {
             int parsed = Integer.parseInt(sizeBox.getValue().trim());
             historySize = Math.max(0, parsed);
@@ -111,13 +119,17 @@ public final class HistoryConfigScreen extends Screen {
 
     @Override
     public void onClose() {
+        // ESC 关闭也要落盘，否则输入框里的改动会被静默丢弃
+        persistSize();
         Minecraft.getInstance().setScreenAndShow(parent);
     }
 
     private void saveConfig() {
         JsonObject root = HistoryCliTomlConfigIO.loadOrCreate(configFile);
-        JsonObject client = root.has("client") ? root.getAsJsonObject("client") : new JsonObject();
-        client.addProperty("record_history", historyStore() != null && historyStore().recordEnabled());
+        JsonObject client = root.has("client") && root.get("client").isJsonObject()
+                ? root.getAsJsonObject("client") : new JsonObject();
+        // 以界面上的开关状态为准：存储未创建时读取 recordEnabled() 会得到 false 并写坏配置
+        client.addProperty("record_history", record);
         client.addProperty("history_size", historySize);
         root.add("client", client);
         root.addProperty("enable_integrated_history", enableIntegrated);

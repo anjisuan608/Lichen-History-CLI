@@ -17,13 +17,18 @@
 
 ## 🧩 支援平台
 
-| 平台 | 端 |
+| 平台 | 產物 |
 | --- | --- |
-| Fabric / Quilt | 用戶端 + 伺服器端 |
-| NeoForge | 伺服器端 |
-| Forge | 伺服器端 |
-| Bukkit / Spigot / Paper / Purpur / Leaves / Leaf | 伺服器端（相容 Folia） |
-| Velocity / BungeeCord (Waterfall) | 代理端 |
+| Fabric / Quilt | 單一 jar |
+| NeoForge | 單一 jar |
+| Forge | 單一 jar |
+| Bukkit / Spigot / Paper / Purpur / Leaves / Leaf | 單一外掛 jar（相容 Folia） |
+| Velocity / BungeeCord (Waterfall) | 單一代理 jar |
+
+> **沒有「用戶端版 / 伺服器版」兩種構建。** 每個載入器只產出**一個 jar**，
+> 用戶端、專用伺服器、整合伺服器的行為在**執行時期依環境注入**
+> （mixin 與事件依執行環境註冊，而非建置期拆分）。
+> NeoForge / Forge 以 **26.2** 編譯並聲明依賴（`[26.2,27)`）。
 
 ## 📖 用法概覽
 
@@ -31,7 +36,7 @@
 - **伺服器端**：`/historycliserver`（別名 `historyclis`、`historycliser`）—— op 指令，管理伺服器歷史。
 - **代理端**：`historycliproxy` / `historyproxy` —— 代理端指令歷史，由權限節點控制。
 
-在聊天框輸入 `/!` 或 `!!` 即可瞬間重跑上一條指令。
+在聊天框輸入 `!!`（或 `/!!`）即可瞬間重跑上一條指令。
 
 ---
 
@@ -39,3 +44,4 @@
 
 - **程式碼**：GNU 寬通用公共授權條款 v3.0 或更新版本（**LGPL-3.0-or-later**）。
 - **本文檔**：創用 CC 姓名標示-相同方式分享 4.0（**CC BY-SA 4.0**）。
+- **圖示**（`icon/icon.png`）：**CC BY-NC-SA 4.0（禁商業）** —— 與程式碼授權不同，散布前請見 [icon/README.md](../icon/README.md)。

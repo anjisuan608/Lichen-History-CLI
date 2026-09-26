@@ -1,3 +1,9 @@
 # 语言设置（放在最前面）：不跟随游戏语言，由此处指定。
 # 可选：en_us / zh_cn / zh_hk / zh_tw
 language: en_us
+
+# 是否记录命令到本 mod 自持的历史日志
+record_history: true
+
+# 历史上限（条）。0 = 不限（长时间运行的代理请注意内存/文件增长）
+history_size: 500

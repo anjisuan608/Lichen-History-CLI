@@ -46,15 +46,14 @@ public final class NeoForgeClientCommand {
         return builder
                 .executes(ctx -> {
                     handler.setSource(ctx.getSource());
-                    handler.handle(new String[0]);
-                    return 1;
+                    return handler.handle(new String[0]) ? 1 : 0;
                 })
                 .then(Commands.argument("rest", StringArgumentType.greedyString())
                         .suggests(HistorySuggestions.suggest(handler.allowFull()))
                         .executes(ctx -> {
                             handler.setSource(ctx.getSource());
-                            handler.handle(HistoryParser.split(StringArgumentType.getString(ctx, "rest")).toArray(new String[0]));
-                            return 1;
+                            return handler.handle(HistoryParser.split(StringArgumentType.getString(ctx, "rest")).toArray(new String[0]))
+                                    ? 1 : 0;
                         }));
     }
 
@@ -96,15 +95,23 @@ public final class NeoForgeClientCommand {
             }
         }
 
+        /**
+         * 把实参转成字符串字面量后展开传入（修复 {@code translatable(key, key, list)} 误传 key 的问题）。
+         */
         private static Component tr(String key, Object... args) {
             if (args == null || args.length == 0) {
                 return Component.translatable(key);
             }
-            java.util.List<Component> list = new java.util.ArrayList<>();
-            for (Object a : args) {
-                list.add(Component.literal(String.valueOf(a)));
+            Object[] converted = new Object[args.length];
+            for (int i = 0; i < args.length; i++) {
+                converted[i] = Component.literal(String.valueOf(args[i]));
             }
-            return Component.translatable(key, key, list);
+            return Component.translatable(key, converted);
+        }
+
+        @Override
+        protected boolean reloadConfig() {
+            return HistoryCliNeoForge.reloadConfig();
         }
 
         @Override

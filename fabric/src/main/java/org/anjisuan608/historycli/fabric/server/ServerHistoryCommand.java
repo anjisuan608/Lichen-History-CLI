@@ -65,15 +65,14 @@ public final class ServerHistoryCommand {
                 .requires(s -> s.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER))
                 .executes(ctx -> {
                     handler.setSource(ctx.getSource());
-                    handler.handle(new String[0]);
-                    return 1;
+                    return handler.handle(new String[0]) ? 1 : 0;
                 })
                 .then(Commands.argument("rest", StringArgumentType.greedyString())
                         .suggests(org.anjisuan608.historycli.HistorySuggestions.suggest(handler.allowFull()))
                         .executes(ctx -> {
                             handler.setSource(ctx.getSource());
-                            handler.handle(HistoryParser.split(StringArgumentType.getString(ctx, "rest")).toArray(new String[0]));
-                            return 1;
+                            return handler.handle(HistoryParser.split(StringArgumentType.getString(ctx, "rest")).toArray(new String[0]))
+                                    ? 1 : 0;
                         }));
     }
 
@@ -92,6 +91,11 @@ public final class ServerHistoryCommand {
         @Override
         protected HistoryStore store() {
             return HistoryCliFabric.serverStore;
+        }
+
+        @Override
+        protected boolean reloadConfig() {
+            return HistoryCliFabric.reloadConfig();
         }
 
         @Override

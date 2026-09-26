@@ -7,6 +7,26 @@ modId = "${mod_id}"
 version = "${version}"
 displayName = "${mod_name}"
 description = "Bash-like history command management for Minecraft."
-authors = "anjisuan608"
-credits = "luosangguichen"
+authors = "${mod_authors}"
+credits = "${mod_credits}"
 logoFile = "icon.png"
+
+# 不声明依赖的话本 mod 会被加载到任意 Minecraft/Forge 版本上，
+# 与「按 26.2 编译与测试」的事实相冲突。
+# 说明：历史上 Forge 用 mandatory，NeoForge 风格用 type；两个键同时给出，
+# 两种解析实现都能取到 "required"，多余的键会被忽略（TOML 不校验未知键）。
+[[dependencies.${mod_id}]]
+modId = "forge"
+mandatory = true
+type = "required"
+versionRange = "[${forge_version},)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "minecraft"
+mandatory = true
+type = "required"
+versionRange = "${minecraft_version_range}"
+ordering = "NONE"
+side = "BOTH"

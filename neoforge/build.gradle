@@ -48,12 +48,22 @@ processResources {
     inputs.property 'mod_license', rootProject.mod_license
     filesMatching('META-INF/neoforge.mods.toml') {
         expand 'version': version, 'mod_id': rootProject.ext.modId,
-                'mod_name': rootProject.ext.modName, 'mod_license': rootProject.mod_license
+                'mod_name': rootProject.ext.modName, 'mod_license': rootProject.mod_license,
+                'mod_authors': rootProject.mod_authors, 'mod_credits': rootProject.mod_credits,
+                'neo_version': rootProject.neo_version,
+                'minecraft_version_range': rootProject.minecraft_version_range
     }
     from(rootProject.file('icon'))
     from(rootProject.file('lang')) {
         into('assets/' + rootProject.ext.modId + '/lang')
     }
+}
+
+// 每个模块只发布 shadowJar 一份产物：普通 jar 与 shadowJar 的默认文件名相同，
+// 谁后执行谁覆盖，可能导致发布出缺少 common 的空壳 jar。这里直接禁用普通 jar，
+// 让 build/libs 里只留下一个可发布的 jar。
+jar {
+    enabled = false
 }
 
 shadowJar {

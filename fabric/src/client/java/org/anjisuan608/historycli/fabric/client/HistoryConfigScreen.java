@@ -32,8 +32,15 @@ public final class HistoryConfigScreen extends Screen {
         this.parent = parent;
         this.configFile = FabricLoader.getInstance().getConfigDir().resolve("lichen-history-cli.json");
         HistoryStore store = HistoryCliFabricClient.store;
-        this.record = store != null && store.recordEnabled();
-        this.historySize = store != null ? store.maxSize() : 0;
+        if (store != null) {
+            this.record = store.recordEnabled();
+            this.historySize = store.maxSize();
+        } else {
+            // 存储尚未创建时，以磁盘配置为准，避免把默认值 0/false 写回配置
+            com.google.gson.JsonObject root = org.anjisuan608.historycli.HistoryCliConfigIO.loadOrCreate(configFile);
+            this.record = org.anjisuan608.historycli.HistoryCliConfigIO.getBool(root, "client", "record_history", true);
+            this.historySize = org.anjisuan608.historycli.HistoryCliConfigIO.getInt(root, "client", "history_size", 500);
+        }
         this.enableIntegrated = HistoryCliFabric.enableIntegratedHistory;
     }
 
@@ -76,10 +83,7 @@ public final class HistoryConfigScreen extends Screen {
                 .bounds(cx - 150, cy + 4, 300, 20)
                 .build());
 
-        addRenderableWidget(Button.builder(Component.translatable("gui.done"), btn -> {
-                    persistSize();
-                    onClose();
-                })
+        addRenderableWidget(Button.builder(Component.translatable("gui.done"), btn -> onClose())
                 .bounds(cx - 100, cy + 36, 200, 20)
                 .build());
     }
@@ -95,6 +99,9 @@ public final class HistoryConfigScreen extends Screen {
     }
 
     private void persistSize() {
+        if (sizeBox == null) {
+            return;
+        }
         try {
             int parsed = Integer.parseInt(sizeBox.getValue().trim());
             historySize = Math.max(0, parsed);
@@ -113,6 +120,8 @@ public final class HistoryConfigScreen extends Screen {
 
     @Override
     public void onClose() {
+        // ESC 关闭也要落盘，否则输入框里的改动会被静默丢弃
+        persistSize();
         Minecraft.getInstance().setScreenAndShow(parent);
     }
 
@@ -122,17 +131,24 @@ public final class HistoryConfigScreen extends Screen {
             JsonObject client;
             if (Files.exists(configFile)) {
                 root = com.google.gson.JsonParser.parseString(Files.readString(configFile, StandardCharsets.UTF_8)).getAsJsonObject();
-                client = root.has("client") ? root.getAsJsonObject("client") : new JsonObject();
+                if (root.has("client") && root.get("client").isJsonObject()) {
+                    client = root.getAsJsonObject("client");
+                } else {
+                    client = new JsonObject();
+                    root.add("client", client); // 缺分节时必须挂回去，否则本次修改会被整体丢弃
+                }
             } else {
                 root = new JsonObject();
                 client = new JsonObject();
                 root.add("client", client);
             }
-            client.addProperty("record_history", historyStore() != null && historyStore().recordEnabled());
+            client.addProperty("record_history", record);
             client.addProperty("history_size", historySize);
             root.addProperty("enable_integrated_history", enableIntegrated);
-            Files.writeString(configFile, root.toString(), StandardCharsets.UTF_8);
-        } catch (Exception ignored) {
+            String json = new com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(root);
+            Files.writeString(configFile, json, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            org.anjisuan608.historycli.fabric.HistoryCliFabric.LOGGER.warn("Failed to save config {}", configFile, e);
         }
     }
 }

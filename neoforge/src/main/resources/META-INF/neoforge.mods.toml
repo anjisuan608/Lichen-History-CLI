@@ -10,7 +10,23 @@ modId = "${mod_id}"
 version = "${version}"
 displayName = "${mod_name}"
 description = "Bash-like history command management for Minecraft."
-authors = "anjisuan608"
-credits = "luosangguichen"
+authors = "${mod_authors}"
+credits = "${mod_credits}"
 iconFile = "icon.png"
 logoFile = "icon.png"
+
+# 不声明依赖的话本 mod 会被加载到任意 Minecraft/NeoForge 版本上，
+# 与「按 26.2 编译与测试」的事实相冲突（AGENTS.md 曾宣称 26.1~26.2 单 jar 通用）。
+[[dependencies.${mod_id}]]
+modId = "neoforge"
+type = "required"
+versionRange = "[${neo_version},)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "minecraft"
+type = "required"
+versionRange = "${minecraft_version_range}"
+ordering = "NONE"
+side = "BOTH"

@@ -17,13 +17,18 @@ A Minecraft mod that brings the familiar **bash `history` command** into the gam
 
 ## 🧩 Platforms
 
-| Platform | Side |
+| Platform | Artifact |
 | --- | --- |
-| Fabric / Quilt | Client + Server |
-| NeoForge | Server |
-| Forge | Server |
-| Bukkit / Spigot / Paper / Purpur / Leaves / Leaf | Server (Folia-ready) |
-| Velocity / BungeeCord (Waterfall) | Proxy |
+| Fabric / Quilt | one jar |
+| NeoForge | one jar |
+| Forge | one jar |
+| Bukkit / Spigot / Paper / Purpur / Leaves / Leaf | one plugin jar (Folia-ready) |
+| Velocity / BungeeCord (Waterfall) | one proxy jar |
+
+> **There is no "client build" and no "server build".** Each loader ships a **single jar**;
+> client, dedicated-server and integrated-server behaviour is selected **at runtime** by the
+> environment the mod is running in (mixin/event registration is environment-scoped, not build-scoped).
+> NeoForge/Forge are compiled and dependency-checked against **26.2** (`[26.2,27)`).
 
 ## 📖 Usage overview
 
@@ -31,7 +36,7 @@ A Minecraft mod that brings the familiar **bash `history` command** into the gam
 - **Server**: `/historycliserver` (also `historyclis`, `historycliser`) — op command for server history.
 - **Proxy**: `historycliproxy` / `historyproxy` — command history for the proxy, gated by permission nodes.
 
-Type `/!` or `!!` in chat to re-run your last command instantly.
+Type `!!` (or `/!!`) in chat to re-run your last command instantly.
 
 ---
 
@@ -39,3 +44,4 @@ Type `/!` or `!!` in chat to re-run your last command instantly.
 
 - **Code**: GNU Lesser General Public License v3.0 or later (**LGPL-3.0-or-later**).
 - **Documentation**: Creative Commons Attribution-ShareAlike 4.0 (**CC BY-SA 4.0**).
+- **Icon** (`icon/icon.png`): **CC BY-NC-SA 4.0 (non-commercial)** — this differs from the code license; see [icon/README.md](../icon/README.md) before redistributing.

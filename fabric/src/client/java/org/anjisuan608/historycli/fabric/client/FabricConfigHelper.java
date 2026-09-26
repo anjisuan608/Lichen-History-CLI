@@ -16,14 +16,20 @@ public final class FabricConfigHelper {
     private FabricConfigHelper() {
     }
 
-    public static void apply(HistoryStore store) {
+    /** 读取配置并应用到给定存储，返回是否成功应用。 */
+    public static boolean apply(HistoryStore store) {
+        if (store == null) {
+            return false;
+        }
         try {
             Path file = FabricLoader.getInstance().getConfigDir().resolve("lichen-history-cli.json");
             JsonObject root = HistoryCliConfigIO.loadOrCreate(file);
-            store.setMaxSize(HistoryCliConfigIO.getInt(root, "client", "history_size", 0));
+            store.setMaxSize(HistoryCliConfigIO.getInt(root, "client", "history_size", 500));
             store.setRecordEnabled(HistoryCliConfigIO.getBool(root, "client", "record_history", true));
+            return true;
         } catch (Exception e) {
-            // 配置异常时忽略，使用默认值
+            // 配置异常时保留当前值（HistoryCliConfigIO 内部已记录告警）
+            return false;
         }
     }
 }

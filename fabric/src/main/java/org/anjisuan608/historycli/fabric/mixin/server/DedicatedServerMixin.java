@@ -30,12 +30,19 @@ public abstract class DedicatedServerMixin {
             return;
         }
         String expanded = ServerHistoryExpander.expand(msg);
-        if (expanded != null) {
-            ((DedicatedServer) (Object) this).handleConsoleInput(expanded, source);
-            ci.cancel();
-        } else {
+        if (expanded == null) {
             HistoryCliFabric.LOGGER.warn("No matching history entry for '{}'", msg);
             ci.cancel();
+            return;
         }
+        if (expanded.startsWith("!")) {
+            // 历史里存了字面量 `!!` 之类的行，继续递归只会无限展开；直接报告无匹配。
+            HistoryCliFabric.LOGGER.warn("Refusing to expand '{}' to '{}': looks like a bang expression",
+                    msg, expanded);
+            ci.cancel();
+            return;
+        }
+        ((DedicatedServer) (Object) this).handleConsoleInput(expanded, source);
+        ci.cancel();
     }
 }

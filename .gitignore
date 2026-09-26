@@ -24,6 +24,13 @@ Thumbs.db
 # Logs
 *.log
 
-# Tmp
+# Tmp / 外部参考代码与抓取产物（不进仓库）
 tmp/
 temp/
+eps/
+
+# 编译/IDE 产物
+*.class
+
+# Node（仓库里没有 Node 项目，防止误建 lockfile）
+package-lock.json

@@ -51,15 +51,14 @@ public final class NeoForgeServerCommand {
                 .requires(s -> s.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER))
                 .executes(ctx -> {
                     handler.setSource(ctx.getSource());
-                    handler.handle(new String[0]);
-                    return 1;
+                    return handler.handle(new String[0]) ? 1 : 0;
                 })
                 .then(Commands.argument("rest", StringArgumentType.greedyString())
                         .suggests(org.anjisuan608.historycli.HistorySuggestions.suggest(handler.allowFull()))
                         .executes(ctx -> {
                             handler.setSource(ctx.getSource());
-                            handler.handle(HistoryParser.split(StringArgumentType.getString(ctx, "rest")).toArray(new String[0]));
-                            return 1;
+                            return handler.handle(HistoryParser.split(StringArgumentType.getString(ctx, "rest")).toArray(new String[0]))
+                                    ? 1 : 0;
                         }));
     }
 
@@ -101,15 +100,25 @@ public final class NeoForgeServerCommand {
             }
         }
 
+        /**
+         * 把实参转成字符串字面量后展开传入。
+         * <p>修复之前 {@code Component.translatable(key, key, list)} 的错误写法——它把 key 自身
+         * 当成了第一个 {@code %s} 实参，用户会看到「Deleted history entry historycli.msg.history_deleted」。</p>
+         */
         private static Component tr(String key, Object... args) {
             if (args == null || args.length == 0) {
                 return Component.translatable(key);
             }
-            java.util.List<Component> list = new java.util.ArrayList<>();
-            for (Object a : args) {
-                list.add(Component.literal(String.valueOf(a)));
+            Object[] converted = new Object[args.length];
+            for (int i = 0; i < args.length; i++) {
+                converted[i] = Component.literal(String.valueOf(args[i]));
             }
-            return Component.translatable(key, key, list);
+            return Component.translatable(key, converted);
+        }
+
+        @Override
+        protected boolean reloadConfig() {
+            return HistoryCliNeoForge.reloadConfig();
         }
 
         @Override

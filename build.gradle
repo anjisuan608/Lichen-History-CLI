@@ -8,11 +8,16 @@ plugins {
 def resolveVersion = {
     String gitRef = System.getenv('GITHUB_REF')
     String gitSha = System.getenv('GITHUB_SHA')
+    String gitEvent = System.getenv('GITHUB_EVENT_NAME')
     String dynamic
     if (gitRef != null && gitRef.startsWith('refs/tags/')) {
-        // tag 发版：取标签名并过滤前缀 v（如有），需为合法 semver
+        // tag 发版：取标签名并去掉前缀 v（不再要求 v 后面必须是数字，
+        // 否则 v1.0 这类 tag 会漏掉前缀，得到 26-v1.0）
         String tag = gitRef.substring('refs/tags/'.length())
-        dynamic = tag.replaceFirst(/^v(?=\d)/, '')
+        dynamic = tag.replaceFirst(/^v/, '')
+    } else if ('pull_request'.equals(gitEvent)) {
+        // PR 构建与 push 构建要能区分开（两者都有 GITHUB_SHA）
+        dynamic = 'pr.' + (gitSha ?: 'unknown').take(7)
     } else if (gitSha != null && !gitSha.isEmpty()) {
         // GitHub Actions 构建：提交哈希前 7 位作为 semver pre-release
         dynamic = 'dev.' + gitSha.take(7)
@@ -35,7 +40,8 @@ subprojects {
     apply plugin: 'java-library'
     apply plugin: 'maven-publish'
 
-    group = 'org.anjisuan608.historycli'
+    // 分组统一取自 gradle.properties 的 mod_group_id，避免两处各写一份
+    group = providers.gradleProperty('mod_group_id').get()
     version = rootProject.ext.fullVersion
 
     repositories {

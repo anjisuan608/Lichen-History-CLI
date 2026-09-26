@@ -1,22 +1,16 @@
 package org.anjisuan608.historycli.fabric;
 
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import net.fabricmc.api.EnvType;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.level.storage.LevelResource;
+import org.anjisuan608.historycli.HistoryCliConfigIO;
 import org.anjisuan608.historycli.HistoryStore;
 import org.anjisuan608.historycli.fabric.server.ServerHistoryCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 public final class HistoryCliFabric implements ModInitializer {
@@ -26,17 +20,22 @@ public final class HistoryCliFabric implements ModInitializer {
     public static HistoryStore serverStore;
     public static boolean enableIntegratedHistory = false;
 
+    /** 服务端配置（[server] 节），启动读取、reload 时重新读取。 */
+    public static boolean serverRecordEnabled = true;
+    public static int serverHistorySize = 500;
+    /** 客户端配置（[client] 节），由客户端模块读取；此处仅统一保存以便 reload 后同步。 */
+    public static boolean clientRecordEnabled = true;
+    public static int clientHistorySize = 500;
+
     @Override
     public void onInitialize() {
-        if (FabricLoader.getInstance().getEnvironmentType() == EnvType.SERVER || FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
-            readConfig();
-        }
+        readConfig();
         CommandRegistrationCallback.EVENT.register(ServerHistoryCommand::register);
 
-        if (FabricLoader.getInstance().getEnvironmentType() == EnvType.SERVER) {
+        if (FabricLoader.getInstance().getEnvironmentType() == net.fabricmc.api.EnvType.SERVER) {
             Path file = FabricLoader.getInstance().getGameDir().resolve("local/historycli/command_history.log");
             serverStore = new HistoryStore(file);
-            serverStore.setMaxSize(0);
+            applyServerConfig();
             serverStore.read();
             LOGGER.info("Lichen History CLI (Fabric server) loaded, history at {}", file);
         }
@@ -52,10 +51,44 @@ public final class HistoryCliFabric implements ModInitializer {
         }
     }
 
+    /** 读取配置文件到内存（不应用到存储）。 */
+    private static com.google.gson.JsonObject readConfigFile() {
+        Path file = FabricLoader.getInstance().getConfigDir().resolve("lichen-history-cli.json");
+        return HistoryCliConfigIO.loadOrCreate(file);
+    }
+
     private static void readConfig() {
-        java.nio.file.Path file = FabricLoader.getInstance().getConfigDir().resolve("lichen-history-cli.json");
-        com.google.gson.JsonObject root = org.anjisuan608.historycli.HistoryCliConfigIO.loadOrCreate(file);
-        enableIntegratedHistory = org.anjisuan608.historycli.HistoryCliConfigIO.getBool(root, null, "enable_integrated_history", false);
+        applyConfig(readConfigFile());
+    }
+
+    private static void applyConfig(com.google.gson.JsonObject root) {
+        boolean previousIntegrated = enableIntegratedHistory;
+        enableIntegratedHistory = HistoryCliConfigIO.getBool(root, null, "enable_integrated_history", false);
+        serverRecordEnabled = HistoryCliConfigIO.getBool(root, "server", "record_history", true);
+        serverHistorySize = HistoryCliConfigIO.getInt(root, "server", "history_size", 500);
+        clientRecordEnabled = HistoryCliConfigIO.getBool(root, "client", "record_history", true);
+        clientHistorySize = HistoryCliConfigIO.getInt(root, "client", "history_size", 500);
+        applyServerConfig();
+        if (previousIntegrated != enableIntegratedHistory) {
+            LOGGER.info("enable_integrated_history changed; the command tree is registered at startup, restart to apply");
+        }
+    }
+
+    private static void applyServerConfig() {
+        if (serverStore != null) {
+            serverStore.setRecordEnabled(serverRecordEnabled);
+            serverStore.setMaxSize(serverHistorySize);
+        }
+    }
+
+    /**
+     * 供 {@code /historycliserver reload} 调用：重新读取配置并应用到历史存储。
+     *
+     * @return 恒为 true（本平台支持重载）
+     */
+    public static boolean reloadConfig() {
+        applyConfig(readConfigFile());
+        return true;
     }
 
     private static void onServerStarted(MinecraftServer server) {
@@ -65,13 +98,15 @@ public final class HistoryCliFabric implements ModInitializer {
                 return;
             }
             try {
-                Path worldData = server.getWorldPath(LevelResource.ROOT).resolve("data").resolve("lichenhistorycli");
+                Path worldData = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT)
+                        .resolve("data").resolve("lichenhistorycli");
                 worldData.toFile().mkdirs();
                 HistoryStore store = new HistoryStore(worldData.resolve("command_history.log"));
-                store.setMaxSize(0);
-                store.read();
                 serverStore = store;
-                LOGGER.info("Lichen History CLI (integrated server) history at {}", worldData.resolve("command_history.log"));
+                applyServerConfig();
+                store.read();
+                LOGGER.info("Lichen History CLI (integrated server) history at {}",
+                        worldData.resolve("command_history.log"));
             } catch (Exception e) {
                 LOGGER.warn("Failed to init integrated history", e);
             }

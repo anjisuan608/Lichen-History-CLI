@@ -7,10 +7,14 @@
   "historycli.msg.history_deleted": "Deleted history entry %s",
   "historycli.msg.invalid_index": "Invalid history index %s",
   "historycli.msg.config_reloaded": "Config reloaded",
+  "historycli.msg.config_reload_failed": "Config reload failed",
+  "historycli.msg.io_error": "History file error: %s",
+  "historycli.msg.not_executable": "Command could not be executed: %s",
   "historycli.msg.no_match": "No matching history entry for '%s'",
   "historycli.msg.unknown_command": "Unknown command",
   "historycli.msg.no_history": "No history",
   "historycli.msg.unsupported_plain": "Unsupported for plain command",
+  "historycli.msg.no_permission": "You do not have permission to do that",
   "historycli.help.title": "Lichen History CLI",
   "historycli.help.usage": "Usage: historycli [list | <num> | -c | -w | -a | -r | -d <n> | reload | help]",
   "historycli.help.options": "Options: list (default) | <num> (last N) | -c clear | -w write | -a append | -r read | -d <n> delete | reload | help | ?",
@@ -18,7 +22,6 @@
   "historycli.help.bang": "Bang: !! last command | !n entry n | !-n last n | !string last matching string",
   "historycli.config.title": "Lichen History CLI",
   "historycli.config.record": "Record history: %s",
-  "historycli.config.history_size": "History size: %s (0 = unlimited)",
   "historycli.config.use_integrated": "Integrated server history: %s",
   "historycli.config.history_size_label": "History size (0 = unlimited)"
 }
