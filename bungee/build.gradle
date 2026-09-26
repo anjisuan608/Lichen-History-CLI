@@ -11,10 +11,6 @@ configurations {
     implementation.extendsFrom shade
 }
 
-repositories {
-    maven { url = 'https://oss.sonatype.org/content/repositories/releases/' }
-}
-
 dependencies {
     compileOnly('net.md-5:bungeecord-api:' + libs.versions.bungeeApi.get()) {
         exclude(module: 'bungeecord-protocol')
@@ -29,6 +25,8 @@ processResources {
         expand 'version': version
     }
     from(rootProject.file('lang'))
+    // LGPL-3.0 §4 要求二进制随附许可证文本
+    from(rootProject.file('LICENSE'))
 }
 
 // 每个模块只发布 shadowJar 一份产物：普通 jar 与 shadowJar 的默认文件名相同，

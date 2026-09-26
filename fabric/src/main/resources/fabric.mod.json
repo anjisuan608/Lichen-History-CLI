@@ -6,14 +6,14 @@
   "description": "Bash-like history command management for Minecraft.",
   "authors": [
     {
-      "name": "anjisuan608",
+      "name": "${mod_authors}",
       "contact": {
         "sources": "https://github.com/anjisuan608/Lichen-History-CLI"
       }
     }
   ],
-  "credits": "luosangguichen",
-  "license": "LGPL-3.0-or-later",
+  "credits": "${mod_credits}",
+  "license": "${mod_license}",
   "icon": "assets/lichenhistorycli/icon.png",
   "environment": "*",
   "entrypoints": {
@@ -39,8 +39,8 @@
     }
   ],
   "depends": {
-    "fabricloader": ">=0.19.3",
-    "minecraft": ">=26.2 <27",
+    "fabricloader": ">=${fabric_loader_version}",
+    "minecraft": "${minecraft_version_range}",
     "java": ">=25",
     "fabric-api": "*"
   }

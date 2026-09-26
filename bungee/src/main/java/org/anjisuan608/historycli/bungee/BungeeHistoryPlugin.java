@@ -42,7 +42,10 @@ import java.util.concurrent.TimeUnit;
 public final class BungeeHistoryPlugin extends Plugin implements Listener {
 
     private HistoryStore store;
-    private Map<String, String> messages = new HashMap<>();
+    /** reload 时写、命令线程读 → 必须 volatile（Bungee 的命令在调用方线程上执行）。 */
+    private volatile Map<String, String> messages = new HashMap<>();
+    /** 是否记录"会被转发到后端服务器"的命令（默认否）。 */
+    private boolean recordForwardedCommands = false;
 
     @Override
     public void onEnable() {
@@ -58,12 +61,17 @@ public final class BungeeHistoryPlugin extends Plugin implements Listener {
         getProxy().getPluginManager().registerCommand(this, bungeeCommand("historyproxy", false, "historypro", "historyp"));
         getProxy().getPluginManager().registerListener(this, this);
 
-        // 定时异步落盘：只在正常退出时写盘的话，崩溃/被 kill 会丢掉整段历史
-        getProxy().getScheduler().schedule(this, () -> {
+        // 定时异步落盘：只在正常退出时写盘的话，崩溃/被 kill 会丢掉整段历史。
+        // 注意 Bungee 的 schedule(delay, period, unit) 中 delay 与 period 共用同一个 unit，
+        // 所以这里必须拆成「30 秒后先刷一次」+「之后每分钟刷」两条任务，
+        // 否则首次落盘要等 30 分钟。
+        Runnable flush = () -> {
             if (store != null && store.isDirty()) {
                 store.write();
             }
-        }, 30, 1, TimeUnit.MINUTES);
+        };
+        getProxy().getScheduler().schedule(this, flush, 30, TimeUnit.SECONDS);
+        getProxy().getScheduler().schedule(this, flush, 1, 1, TimeUnit.MINUTES);
 
         getLogger().info("Lichen History CLI (BungeeCord) enabled, language="
                 + getConfigValue("language", "en_us"));
@@ -77,10 +85,14 @@ public final class BungeeHistoryPlugin extends Plugin implements Listener {
         }
     }
 
-    /** 重新读取 config.yml 并应用（语言 + 记录开关 + 历史上限）。 */
+    /** 重新读取 config.yml 并应用（语言 + 记录开关 + 转发记录 + 历史上限）。 */
     private boolean reloadConfig() {
+        if (!loadConfig()) {
+            // 解析失败：保留当前配置（不能先清空再失败，那会把所有设置重置成默认值却报"重载成功"）
+            return false;
+        }
         try {
-            loadConfigAndMessages();
+            loadMessages(getConfigValue("language", "en_us"));
             applyConfigToStore();
             return true;
         } catch (Exception e) {
@@ -90,6 +102,7 @@ public final class BungeeHistoryPlugin extends Plugin implements Listener {
     }
 
     private void applyConfigToStore() {
+        recordForwardedCommands = Boolean.parseBoolean(getConfigValue("record_forwarded_commands", "false"));
         if (store == null) {
             return;
         }
@@ -102,8 +115,11 @@ public final class BungeeHistoryPlugin extends Plugin implements Listener {
     }
 
     private void loadConfigAndMessages() {
-        loadConfig();
+        if (!loadConfig()) {
+            getLogger().warning("config.yml could not be read, using defaults for this session");
+        }
         loadMessages(getConfigValue("language", "en_us"));
+        applyConfigToStore();
     }
 
     private String getConfigValue(String key, String def) {
@@ -112,7 +128,13 @@ public final class BungeeHistoryPlugin extends Plugin implements Listener {
 
     private final Map<String, String> configValues = new HashMap<>();
 
-    private void loadConfig() {        configValues.clear();
+    /**
+     * 读取 config.yml。解析结果先写进临时表，成功才整体提交——
+     * 解析失败时**保留**旧配置，而不是把它清空后回落到默认值。
+     *
+     * @return 是否成功读取
+     */
+    private boolean loadConfig() {
         File cfg = new File(getDataFolder(), "config.yml");
         if (!cfg.exists()) {
             getDataFolder().mkdirs();
@@ -124,17 +146,22 @@ public final class BungeeHistoryPlugin extends Plugin implements Listener {
                 getLogger().warning("Failed to extract config.yml: " + e);
             }
         }
+        Map<String, String> parsed = new HashMap<>();
         try {
             Configuration conf = ConfigurationProvider.getProvider(YamlConfiguration.class).load(cfg);
             for (String key : conf.getKeys()) {
                 Object value = conf.get(key);
                 if (value != null) {
-                    configValues.put(key, String.valueOf(value));
+                    parsed.put(key, String.valueOf(value));
                 }
             }
         } catch (Exception e) {
             getLogger().warning("Failed to load config.yml: " + e);
+            return false;
         }
+        configValues.clear();
+        configValues.putAll(parsed);
+        return true;
     }
 
     private void loadMessages(String language) {
@@ -232,7 +259,20 @@ public final class BungeeHistoryPlugin extends Plugin implements Listener {
         }
     }
 
-    /** 玩家侧：{@code /} 开头的输入（含 {@code /!!} 展开）。普通聊天不入史。 */
+    /**
+     * 玩家侧录制：<b>只记录发给代理端的命令</b>（如 {@code /server}），
+     * 默认不记录会被转发到后端服务器的命令（如 {@code /time set day}）——
+     * 这由 {@code record_forwarded_commands}（默认 false）控制。
+     *
+     * <p>两点刻意的"不做"：</p>
+     * <ul>
+     *   <li><b>不在聊天里做 {@code !!} 展开</b>：代理端一律用 {@code historycliproxy !!} /
+     *       {@code historyproxy}。此前的实现靠 {@code ChatEvent.setMessage} 改写输入，
+     *       但 BungeeCord 1.19+ 的 {@code UpstreamBridge.handle(ClientCommand)} 会丢弃改写结果，
+     *       结果是"展开没生效 + 幽灵历史行"；</li>
+     *   <li><b>普通聊天文本不入史</b>（只有 {@code /} 开头的才算命令）。</li>
+     * </ul>
+     */
     @EventHandler
     public void onChat(ChatEvent event) {
         if (event.isCancelled()) {
@@ -244,15 +284,18 @@ public final class BungeeHistoryPlugin extends Plugin implements Listener {
         }
         String body = msg.substring(1);
         if (body.startsWith("!")) {
-            String expanded = store.resolve(body);
-            if (expanded != null && !expanded.startsWith("!")) {
-                store.add(expanded);
-                event.setMessage("/" + HistoryCommandHandler.stripLeadingSlash(expanded));
-            }
-            // 展开失败时放行：它可能真的是一个以 ! 开头的已注册命令
+            // 历史展开请求：不录制、不展开、原样放行（代理端没有聊天侧展开功能）
             return;
         }
-        store.add(body);
+        // isExecutableCommand 只认"命令名"，不含参数；
+        // getSender() 返回 Connection，只有 ProxiedPlayer 同时是 CommandSender（控制台不走这里）
+        CommandSender sender = event.getSender() instanceof CommandSender cs ? cs : null;
+        int space = body.indexOf(' ');
+        String commandName = space > 0 ? body.substring(0, space) : body;
+        boolean consumedByProxy = getProxy().getPluginManager().isExecutableCommand(commandName, sender);
+        if (consumedByProxy || recordForwardedCommands) {
+            store.add(body);
+        }
     }
 
     private static final class BungeeHandler extends HistoryCommandHandler {

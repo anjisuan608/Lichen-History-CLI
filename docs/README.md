@@ -36,8 +36,6 @@ A Minecraft mod that brings the familiar **bash `history` command** into the gam
 - **Server**: `/historycliserver` (also `historyclis`, `historycliser`) — op command for server history.
 - **Proxy**: `historycliproxy` / `historyproxy` — command history for the proxy, gated by permission nodes.
 
-Type `!!` (or `/!!`) in chat to re-run your last command instantly.
-
 ---
 
 ## 📜 License

@@ -172,12 +172,17 @@ public final class HistoryCliTomlConfigIO {
 
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i);
-            if (line.contains("\"\"\"")) {
-                // 多行字符串：本解析器不支持，原样保留，避免覆盖用户内容。
-                continue;
-            }
             String stripped = stripComment(line);
             int eq = indexOfAssignment(stripped.trim());
+            if (line.contains("\"\"\"")) {
+                // 多行字符串：本解析器不支持，原样保留，但必须登记该键"已处理"，
+                // 否则下面补缺失键时会给同一个键再追加一行 → 产出非法 TOML。
+                if (eq > 0) {
+                    String rawKey = unquote(stripped.trim().substring(0, eq).trim());
+                    markHandled(sectionOf[i], rawKey, handledRoot, handledSection);
+                }
+                continue;
+            }
             if (eq <= 0) {
                 continue;
             }
@@ -187,12 +192,10 @@ public final class HistoryCliTomlConfigIO {
             if (value == null || value.isJsonObject()) {
                 continue;
             }
-            lines.set(i, key + " = " + toTomlValue(value) + trailingComment(line));
-            if (section == null) {
-                handledRoot.add(key);
-            } else {
-                handledSection.computeIfAbsent(section, k -> new LinkedHashSet<>()).add(key);
-            }
+            // 保留原行的缩进与行尾注释（连同注释前的空白）：
+            // 否则会写成 `history_size = 999# keep`，严格 TOML 解析器会拒收整个文件。
+            lines.set(i, leadingWhitespace(line) + key + " = " + toTomlValue(value) + trailingComment(line));
+            markHandled(section, key, handledRoot, handledSection);
         }
 
         // 补齐缺失的根键（必须插在第一个分节标题之前）。
@@ -275,10 +278,35 @@ public final class HistoryCliTomlConfigIO {
         return target.get(key);
     }
 
-    /** 行尾注释（含前置空白），无注释返回空串。 */
+    private static void markHandled(String section, String key,
+                                    Set<String> handledRoot, Map<String, Set<String>> handledSection) {
+        if (section == null || section.isEmpty()) {
+            handledRoot.add(key);
+        } else {
+            handledSection.computeIfAbsent(section, k -> new LinkedHashSet<>()).add(key);
+        }
+    }
+
+    /** 行首空白（缩进），改写行时保留。 */
+    private static String leadingWhitespace(String line) {
+        int i = 0;
+        while (i < line.length() && Character.isWhitespace(line.charAt(i))) {
+            i++;
+        }
+        return line.substring(0, i);
+    }
+
+    /** 行尾注释（连同 `#` 之前的空白一起返回），无注释返回空串。 */
     private static String trailingComment(String line) {
         int idx = indexOfComment(line);
-        return idx >= 0 ? line.substring(idx) : "";
+        if (idx < 0) {
+            return "";
+        }
+        int start = idx;
+        while (start > 0 && Character.isWhitespace(line.charAt(start - 1))) {
+            start--;
+        }
+        return line.substring(start);
     }
 
     /** 返回行外（字符串之外）第一个 `#` 的下标；没有则 -1。 */

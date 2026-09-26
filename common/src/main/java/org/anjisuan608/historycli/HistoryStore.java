@@ -3,8 +3,10 @@ package org.anjisuan608.historycli;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,12 +16,21 @@ import java.util.List;
  * 命令历史的内存缓冲区与文件读写（bash HISTFILE + 内存模型）。
  * <p>纯 Java 实现，不依赖任何平台 API，供各平台适配层复用。</p>
  *
- * <p>线程模型：状态读写均为 {@code synchronized}，但整文件 IO 已移出锁外
- * （先在锁内取快照/落标记，再在锁外读写磁盘），避免在锁内做磁盘 IO 阻塞主线程/网络线程。</p>
+ * <p>三个并发要点：</p>
+ * <ol>
+ *   <li><b>状态锁</b>：{@code buffer}/{@code dirtyCount} 的读写都在 {@code synchronized(this)} 内；</li>
+ *   <li><b>文件锁 {@link #ioLock}</b>：{@code read/write/append} 三个文件操作互斥——
+ *       它们在状态锁<b>之外</b>执行（避免磁盘 IO 阻塞命令线程），若不加锁，
+ *       代理端定时落盘线程与命令线程的 {@code TRUNCATE_EXISTING} + {@code APPEND} 会交错，
+ *       产生 NUL 空洞/重复尾行；</li>
+ *   <li><b>{@code -w} 原子替换</b>：先写 {@code *.tmp} 再 {@code ATOMIC_MOVE}，
+ *       崩溃不会留下被截断一半的日志（这是唯一的副本）。</li>
+ * </ol>
  *
- * <p>落盘跟踪用「<b>未写入行数</b>」而不是「首条未写入下标」：下标在 {@link #delete} 之后会错位，
- * 导致 {@code -a} 把已经在文件里的行再追加一遍；计数模型下删除只是让计数减一（被删的若本就未写入），
- * 行为与 bash 的 {@code history -d} + {@code history -a} 一致。</p>
+ * <p>落盘跟踪用「<b>未写入行数</b>」（{@code dirtyCount}，指缓冲区<b>末尾</b>那几行）。
+ * 用行数而不是下标，是因为下标在 {@link #delete} 之后会错位；
+ * 相应地所有操作都必须保持「脏行在尾部」这一不变量——{@link #read} 因此把文件行
+ * <b>插到头部</b>而不是追加到尾部。</p>
  */
 public final class HistoryStore {
 
@@ -30,6 +41,9 @@ public final class HistoryStore {
     private int maxSize = 500;
     private boolean ignoreDups = true;
     private boolean recordEnabled = true;
+
+    /** 文件操作互斥锁（独立于状态锁：状态锁只保护内存结构）。 */
+    private final Object ioLock = new Object();
 
     public HistoryStore(Path file) {
         this.file = file;
@@ -117,31 +131,34 @@ public final class HistoryStore {
     }
 
     /**
-     * -r：从文件追加读取到缓冲区末尾（bash 实际语义，不清空当前行）。
-     * <p>读入的行本就来自文件，因此读取后视为「已全部落盘」，
-     * 否则随后的 -a 会把整个文件重复追加一遍。这与 bash 的 -r 语义一致。</p>
+     * -r：从文件读取历史。文件内容<b>插到缓冲区头部</b>（而不是追加到尾部）：
+     * 文件里的行在时间上早于内存中尚未落盘的新行，且这样能保持
+     * 「脏行集中在尾部」的不变量——否则 {@code dirtyCount} 无法表达，
+     * 会像修复前那样把未落盘的行一并标成"已写入"，随后 {@code -a} 永远不会写出它们。
      */
     public void read() {
         if (file == null || !Files.exists(file)) {
             return;
         }
         List<String> lines;
-        try {
-            lines = Files.readAllLines(file, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to read " + file, e);
+        synchronized (ioLock) {
+            try {
+                lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to read " + file, e);
+            }
         }
         synchronized (this) {
-            buffer.addAll(lines);
+            buffer.addAll(0, lines);
             trim();
-            dirtyCount = 0;
+            dirtyCount = Math.min(dirtyCount, buffer.size());
         }
     }
 
     /**
-     * -w：用缓冲区全量覆盖写入文件。
-     * <p>快照与「标记为已落盘」在锁内完成，磁盘写在锁外；写失败时回滚标记，
-     * 保证未成功写入的行仍会被后续 -a 追加。</p>
+     * -w：用缓冲区全量覆盖写入文件（原子替换：先写临时文件再移动）。
+     * <p>状态标记在锁内先置 0，磁盘写在 {@link #ioLock} 内、状态锁外；
+     * 失败时<b>加性</b>回滚（{@code += previous}）——用赋值会吞掉 IO 期间并发 {@code add} 的新行。</p>
      */
     public void write() {
         if (file == null) {
@@ -155,15 +172,12 @@ public final class HistoryStore {
             dirtyCount = 0;
         }
         try {
-            Path parent = file.getParent();
-            if (parent != null) {
-                Files.createDirectories(parent);
+            synchronized (ioLock) {
+                writeAtomically(snapshot);
             }
-            Files.write(file, snapshot, StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
         } catch (IOException e) {
             synchronized (this) {
-                dirtyCount = previous;
+                dirtyCount += previous;
             }
             throw new UncheckedIOException("Failed to write " + file, e);
         }
@@ -178,25 +192,43 @@ public final class HistoryStore {
         int previous;
         synchronized (this) {
             previous = dirtyCount;
-            int start = Math.max(0, buffer.size() - dirtyCount);
-            pending = new ArrayList<>(buffer.subList(start, buffer.size()));
+            pending = new ArrayList<>(buffer.subList(Math.max(0, buffer.size() - dirtyCount), buffer.size()));
             dirtyCount = 0;
         }
         if (pending.isEmpty()) {
             return;
         }
         try {
-            Path parent = file.getParent();
-            if (parent != null) {
-                Files.createDirectories(parent);
+            synchronized (ioLock) {
+                Path parent = file.getParent();
+                if (parent != null) {
+                    Files.createDirectories(parent);
+                }
+                Files.write(file, pending, StandardCharsets.UTF_8,
+                        StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE);
             }
-            Files.write(file, pending, StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE);
         } catch (IOException e) {
             synchronized (this) {
-                dirtyCount = previous;
+                dirtyCount += previous;
             }
             throw new UncheckedIOException("Failed to append " + file, e);
+        }
+    }
+
+    /** 写临时文件后原子替换，避免「先截断再写」的崩溃窗口把整份日志毁掉。 */
+    private void writeAtomically(List<String> lines) throws IOException {
+        Path parent = file.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        Path tmp = file.resolveSibling(file.getFileName().toString() + ".tmp");
+        Files.write(tmp, lines, StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+        try {
+            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            // 某些文件系统（跨盘/旧 NFS）不支持原子移动，退化为普通替换
+            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 
@@ -233,14 +265,20 @@ public final class HistoryStore {
      * 解析 bash 历史展开表达式（!! / !n / !-n / !string），返回匹配的命令；无匹配返回 null。
      * 大小写敏感。
      *
-     * <p>纯数字与负数字分支对超长数字（如 {@code !999999999999999}）做了溢出保护，
-     * 越界一律返回 null 而不是抛 {@link NumberFormatException}。</p>
+     * <p>单独一个 {@code !} 一律按「无匹配」处理——bash 对孤立 {@code !} 的语义是
+     * "event not found"，而把它当 {@code !!} 用会让聊天框里一个误敲的感叹号
+     * 直接重跑上一条（可能是 {@code /stop} 之类的破坏性命令）。</p>
+     *
+     * <p>超长数字（如 {@code !999999999999999}）按「无匹配」处理，不抛 {@link NumberFormatException}。</p>
      */
     public synchronized String resolve(String expr) {
         if (expr == null || !expr.startsWith("!")) {
             return null;
         }
-        if (expr.equals("!") || expr.equals("!!")) {
+        if (expr.equals("!")) {
+            return null;
+        }
+        if (expr.equals("!!")) {
             return buffer.isEmpty() ? null : buffer.get(buffer.size() - 1);
         }
         if (expr.length() < 2) {

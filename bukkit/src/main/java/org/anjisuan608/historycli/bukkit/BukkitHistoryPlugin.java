@@ -32,7 +32,8 @@ import java.util.Map;
 public final class BukkitHistoryPlugin extends JavaPlugin implements Listener {
 
     private HistoryStore store;
-    private Map<String, String> messages = new HashMap<>();
+    /** reload 时在配置线程写、命令/事件线程读 → 必须 volatile（Folia 上跨区域线程）。 */
+    private volatile Map<String, String> messages = new HashMap<>();
 
     @Override
     public void onEnable() {
@@ -43,7 +44,13 @@ public final class BukkitHistoryPlugin extends JavaPlugin implements Listener {
         file.getParentFile().mkdirs();
         store = new HistoryStore(file.toPath());
         applyStoreConfig();
-        store.read();
+        try {
+            store.read();
+        } catch (Exception e) {
+            // 日志文件损坏（非原子写崩溃的产物）时用空历史继续，
+            // 而不是让整个插件加载失败
+            getLogger().warning("Failed to read history file, starting with an empty history: " + e);
+        }
 
         getCommand("historycliserver").setExecutor(bukkitCommand(true));
         getCommand("historyserver").setExecutor(bukkitCommand(false));
@@ -65,6 +72,13 @@ public final class BukkitHistoryPlugin extends JavaPlugin implements Listener {
     private boolean applyConfig() {
         try {
             reloadConfig(); // JavaPlugin：重新解析 config.yml
+            File cfg = new File(getDataFolder(), "config.yml");
+            // JavaPlugin.reloadConfig() 会吞掉 YAML 解析错误；文件非空却一个键都没读到
+            // 说明配置损坏 —— 这种情况下要如实上报失败，而不是"配置已重载"
+            if (cfg.exists() && cfg.length() > 0 && getConfig().getKeys(false).isEmpty()) {
+                getLogger().warning("config.yml could not be parsed, keeping current settings");
+                return false;
+            }
             loadMessages(getConfig().getString("language", "en_us"));
             applyStoreConfig();
             return true;
@@ -179,6 +193,15 @@ public final class BukkitHistoryPlugin extends JavaPlugin implements Listener {
             return;
         }
         String body = message.substring(1);
+        if (body.startsWith("!")) {
+            // 裸 `!!` / `!5` 与 `/historycliserver !!` 是同一件事，必须过同一道权限门，
+            // 否则任何玩家（哪怕一个 historycli.* 都没有）都能凭裸输入重放历史里的命令
+            if (!permitted(event.getPlayer(), new String[]{body}, true)) {
+                event.setCancelled(true);
+                event.getPlayer().sendMessage(tr(HistoryCommandHandler.Keys.NO_PERMISSION));
+                return;
+            }
+        }
         String changed = process(event.getPlayer(), body, null, event::setCancelled);
         if (changed != null) {
             // 展开结果仍是命令，改写发往服务端的内容

@@ -41,13 +41,16 @@ class HistoryParserTest {
     }
 
     @Test
-    void malformedInputsFallBackToHelp() {
-        assertEquals(HistoryParser.Action.HELP, action("-d"));
-        assertEquals(HistoryParser.Action.HELP, action("-d", "abc"));
-        assertEquals(HistoryParser.Action.HELP, action("not-a-number"));
-        // 超出 int 范围也必须走 help，而不是抛 NumberFormatException
-        assertEquals(HistoryParser.Action.HELP, action("99999999999999999999"));
-        assertEquals(HistoryParser.Action.HELP, action("-d", "99999999999999999999"));
+    void malformedInputsAreParseErrorsNotHelp() {
+        // 显式求助才是 HELP（返回成功）；参数看不懂要判失败，让命令方块/自动化能感知
+        assertEquals(HistoryParser.Action.HELP, action("help"));
+        assertEquals(HistoryParser.Action.HELP, action("?"));
+        assertEquals(HistoryParser.Action.PARSE_ERROR, action("-d"));
+        assertEquals(HistoryParser.Action.PARSE_ERROR, action("-d", "abc"));
+        assertEquals(HistoryParser.Action.PARSE_ERROR, action("not-a-number"));
+        // 超出 int 范围也必须是 parse error，而不是抛 NumberFormatException
+        assertEquals(HistoryParser.Action.PARSE_ERROR, action("99999999999999999999"));
+        assertEquals(HistoryParser.Action.PARSE_ERROR, action("-d", "99999999999999999999"));
     }
 
     @Test

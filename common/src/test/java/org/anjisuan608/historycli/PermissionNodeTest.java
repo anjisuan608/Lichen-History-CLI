@@ -55,17 +55,6 @@ class PermissionNodeTest {
     }
 
     @Test
-    void impliesFollowsTheSameRules() {
-        assertTrue(PermissionNode.implies(PermissionNode.ALL, PermissionNode.CLEAR));
-        assertTrue(PermissionNode.implies(PermissionNode.CLEAR, PermissionNode.CLEAR));
-        assertTrue(PermissionNode.implies(PermissionNode.USE, PermissionNode.LIST));
-        assertFalse(PermissionNode.implies(PermissionNode.USE, PermissionNode.CLEAR));
-        assertFalse(PermissionNode.implies(PermissionNode.CLEAR, PermissionNode.LIST));
-        assertFalse(PermissionNode.implies(null, PermissionNode.LIST));
-        assertFalse(PermissionNode.implies(PermissionNode.LIST, null));
-    }
-
-    @Test
     void nothingGrantedMeansNoAccess() {
         Set<String> granted = new HashSet<>();
         for (HistoryParser.Action action : HistoryParser.Action.values()) {

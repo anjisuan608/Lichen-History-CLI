@@ -62,7 +62,9 @@ class HistoryCliConfigIOTest {
         typed.addProperty("history_size", "not a number");
         typed.addProperty("record_history", "maybe");
         assertEquals(7, HistoryCliConfigIO.getInt(typed, null, "history_size", 7));
-        // Gson 会把非布尔字符串 parse 成 false，总之不会抛异常
-        assertFalse(HistoryCliConfigIO.getBool(typed, null, "record_history", true));
+        // 类型不对时必须回落到调用方默认值：Gson 的 getAsBoolean() 会把 "maybe" 解析成 false，
+        // 那样一个拼写错误就会静默关掉 record_history
+        assertTrue(HistoryCliConfigIO.getBool(typed, null, "record_history", true));
+        assertFalse(HistoryCliConfigIO.getBool(typed, null, "record_history", false));
     }
 }

@@ -11,6 +11,7 @@ import net.minecraft.network.chat.Component;
 import org.anjisuan608.historycli.HistoryCommandHandler;
 import org.anjisuan608.historycli.HistoryParser;
 import org.anjisuan608.historycli.HistoryStore;
+import org.anjisuan608.historycli.fabric.HistoryCliFabric;
 
 /**
  * 客户端命令体系。
@@ -79,6 +80,9 @@ public final class ClientHistoryCommand {
 
         @Override
         protected boolean reloadConfig() {
+            // 一次 reload 同时刷新两端配置：FabricConfigHelper 只管 [client]，
+            // HistoryCliFabric 负责 [server] 与 enable_integrated_history
+            HistoryCliFabric.reloadConfig();
             return FabricConfigHelper.apply(HistoryCliFabricClient.store);
         }
 

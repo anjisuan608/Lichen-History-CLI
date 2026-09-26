@@ -23,9 +23,6 @@ public final class HistoryCliFabric implements ModInitializer {
     /** 服务端配置（[server] 节），启动读取、reload 时重新读取。 */
     public static boolean serverRecordEnabled = true;
     public static int serverHistorySize = 500;
-    /** 客户端配置（[client] 节），由客户端模块读取；此处仅统一保存以便 reload 后同步。 */
-    public static boolean clientRecordEnabled = true;
-    public static int clientHistorySize = 500;
 
     @Override
     public void onInitialize() {
@@ -36,7 +33,12 @@ public final class HistoryCliFabric implements ModInitializer {
             Path file = FabricLoader.getInstance().getGameDir().resolve("local/historycli/command_history.log");
             serverStore = new HistoryStore(file);
             applyServerConfig();
-            serverStore.read();
+            try {
+                serverStore.read();
+            } catch (Exception e) {
+                // 日志损坏时用空历史继续，而不是让 mod 起不来
+                LOGGER.warn("Failed to read server history, starting empty", e);
+            }
             LOGGER.info("Lichen History CLI (Fabric server) loaded, history at {}", file);
         }
 
@@ -66,8 +68,6 @@ public final class HistoryCliFabric implements ModInitializer {
         enableIntegratedHistory = HistoryCliConfigIO.getBool(root, null, "enable_integrated_history", false);
         serverRecordEnabled = HistoryCliConfigIO.getBool(root, "server", "record_history", true);
         serverHistorySize = HistoryCliConfigIO.getInt(root, "server", "history_size", 500);
-        clientRecordEnabled = HistoryCliConfigIO.getBool(root, "client", "record_history", true);
-        clientHistorySize = HistoryCliConfigIO.getInt(root, "client", "history_size", 500);
         applyServerConfig();
         if (previousIntegrated != enableIntegratedHistory) {
             LOGGER.info("enable_integrated_history changed; the command tree is registered at startup, restart to apply");
@@ -84,32 +84,54 @@ public final class HistoryCliFabric implements ModInitializer {
     /**
      * 供 {@code /historycliserver reload} 调用：重新读取配置并应用到历史存储。
      *
-     * @return 恒为 true（本平台支持重载）
+     * @return true=已重载；false=配置文件损坏（此时保留当前设置，而不是回落成默认值还报成功）
      */
     public static boolean reloadConfig() {
-        applyConfig(readConfigFile());
+        com.google.gson.JsonObject root = readConfigFile();
+        if (root.entrySet().isEmpty()) {
+            LOGGER.warn("lichen-history-cli.json could not be parsed, keeping current settings");
+            return false;
+        }
+        applyConfig(root);
         return true;
     }
 
     private static void onServerStarted(MinecraftServer server) {
-        // 集成服务器（单人/局域网）且配置开启时，初始化服务端历史到 world/data
-        if (server.isSingleplayer()) {
-            if (!enableIntegratedHistory) {
-                return;
-            }
-            try {
-                Path worldData = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT)
-                        .resolve("data").resolve("lichenhistorycli");
-                worldData.toFile().mkdirs();
-                HistoryStore store = new HistoryStore(worldData.resolve("command_history.log"));
-                serverStore = store;
-                applyServerConfig();
-                store.read();
-                LOGGER.info("Lichen History CLI (integrated server) history at {}",
-                        worldData.resolve("command_history.log"));
-            } catch (Exception e) {
-                LOGGER.warn("Failed to init integrated history", e);
-            }
+        // 集成服务器（单人/局域网）
+        if (!server.isSingleplayer()) {
+            return;   // 专用服务器的 store 在 onInitialize 已建好
         }
+        // 换存档 / 关掉集成历史：先把旧 store 写盘并丢弃，
+        // 否则 serverStore 仍指向世界 A 的文件，世界 B 的命令会一路写进世界 A 的日志
+        dropStaleServerStore();
+        if (!enableIntegratedHistory) {
+            return;
+        }
+        try {
+            Path worldData = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT)
+                    .resolve("data").resolve("lichenhistorycli");
+            worldData.toFile().mkdirs();
+            HistoryStore store = new HistoryStore(worldData.resolve("command_history.log"));
+            serverStore = store;
+            applyServerConfig();
+            store.read();
+            LOGGER.info("Lichen History CLI (integrated server) history at {}",
+                    worldData.resolve("command_history.log"));
+        } catch (Exception e) {
+            LOGGER.warn("Failed to init integrated history", e);
+        }
+    }
+
+    /** 写盘并丢弃当前的集成服务器 store（换存档/关闭集成历史时调用）。 */
+    private static void dropStaleServerStore() {
+        if (serverStore == null) {
+            return;
+        }
+        try {
+            serverStore.write();
+        } catch (Exception e) {
+            LOGGER.warn("Failed to flush previous integrated history", e);
+        }
+        serverStore = null;
     }
 }

@@ -21,7 +21,9 @@ class HistoryStoreTest {
     @Test
     void bangDoubleBang() {
         assertEquals("summon zombie", store().resolve("!!"));
-        assertEquals("summon zombie", store().resolve("!"));
+        // bash 对孤立 `!` 的语义是 event not found：不得把聊天框里误敲的感叹号
+        // 变成"重跑上一条（可能是 /stop）"
+        assertNull(store().resolve("!"));
     }
 
     @Test

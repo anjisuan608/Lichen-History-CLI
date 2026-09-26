@@ -22,7 +22,8 @@ public final class HistoryParser {
         DELETE,        // -d <编号>
         RELOAD,        // reload
         EXECUTE,       // ! 展开执行
-        HELP,          // 帮助/错误
+        HELP,          // help / ?（用户显式求助）
+        PARSE_ERROR,   // 参数无法解析（显示帮助，但要按"失败"回报给调用方/自动化）
         EMPTY          // 无参数
     }
 
@@ -85,18 +86,19 @@ public final class HistoryParser {
                 return Result.of(Action.READ);
             case "-d":
                 if (args.length < 2) {
-                    return Result.of(Action.HELP);
+                    return Result.of(Action.PARSE_ERROR);
                 }
                 try {
                     return Result.of(Action.DELETE, Integer.parseInt(args[1]));
                 } catch (NumberFormatException e) {
-                    return Result.of(Action.HELP);
+                    return Result.of(Action.PARSE_ERROR);
                 }
             default:
                 try {
                     return Result.of(Action.LIST, Integer.parseInt(first));
                 } catch (NumberFormatException e) {
-                    return Result.of(Action.HELP);
+                    // 无法解析的参数：给用户看帮助，但对调用方（命令方块/自动化）算失败
+                    return Result.of(Action.PARSE_ERROR);
                 }
         }
     }

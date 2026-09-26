@@ -26,8 +26,11 @@ public final class ForgeClientEvents {
      * {@code ForgeHooksClient.onClientSendMessage} 从而触发本事件，而 {@code sendCommand} <b>不会</b>。
      * 因此本事件只覆盖「非 / 前缀」的输入：</p>
      * <ul>
-     *   <li>{@code !!} / {@code !n} 等裸展开输入 → 展开后以命令发送，并取消原聊天输入；</li>
-     *   <li>以 {@code /} 开头（其它插件可能这样调用）→ 仅记录，不干预；</li>
+     *   <li>单 token 的 {@code !!} / {@code !n} / {@code !string} → 展开后以命令发送，
+     *       并抑制原聊天输入；</li>
+     *   <li>多词的 {@code !} 开头输入（{@code !gg}、{@code !hello world}）或孤立 {@code !}
+     *       → 那是<b>聊天</b>，原样放行，不能吞掉；</li>
+     *   <li>以 {@code /} 开头 → 仅记录，不干预；</li>
      *   <li>普通聊天文本 → <b>不记录</b>。历史只存命令，聊天内容属隐私，不能混进来。</li>
      * </ul>
      */
@@ -38,6 +41,9 @@ public final class ForgeClientEvents {
             return;
         }
         if (message.startsWith("!")) {
+            if (!org.anjisuan608.historycli.HistoryCommandHandler.isBangRequest(message)) {
+                return;   // 不是展开请求 → 原样作为聊天发出
+            }
             String expanded = HistoryCliForge.interceptClientCommand(message);
             // 抑制原输入（展开失败时也不要把字面量 `!!` 当聊天发出去）
             event.setMessage("");

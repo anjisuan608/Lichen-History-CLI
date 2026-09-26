@@ -134,6 +134,51 @@ class HistoryStoreIoTest {
     }
 
     @Test
+    void readKeepsUnflushedRowsDirty() throws IOException {
+        // 修复前：-r 会把 dirtyCount 清零，之前录进去但还没落盘的行被永久标成"已写入"，
+        // 随后的 -a 永远不会写出它们（单线程可复现的数据丢失）
+        HistoryStore store = new HistoryStore(file());
+        store.setMaxSize(0);
+        store.add("pending-1");
+        store.add("pending-2");
+        assertTrue(store.isDirty());
+
+        store.read();                 // 文件此时还不存在 → 只是保持不变
+        assertTrue(store.isDirty(), "-r 之后未落盘的行仍然必须是脏的");
+
+        Files.write(file(), List.of("from-file"), StandardCharsets.UTF_8);
+        store.read();
+        assertTrue(store.isDirty());
+
+        store.append();
+        assertEquals(List.of("from-file", "pending-1", "pending-2"), lines(file()));
+        assertFalse(store.isDirty());
+    }
+
+    @Test
+    void writeLeavesNoTempFileAndReplacesAtomically() throws IOException {
+        HistoryStore store = new HistoryStore(file());
+        store.setMaxSize(0);
+        store.add("first");
+        store.write();
+
+        store.add("second");
+        store.write();
+
+        assertEquals(List.of("first", "second"), lines(file()));
+        assertFalse(Files.exists(file().resolveSibling("command_history.log.tmp")),
+                "临时文件应在原子移动后消失");
+    }
+
+    @Test
+    void resolveLoneBangIsRejected() {
+        HistoryStore store = new HistoryStore(file());
+        store.setMaxSize(0);
+        store.add("say hi");
+        assertNull(store.resolve("!"), "孤立 `!` 不得等同于 `!!`，否则误敲感叹号会重跑上一条命令");
+    }
+
+    @Test
     void trimKeepsDirtyStartConsistent() throws IOException {
         HistoryStore store = new HistoryStore(file());
         store.setMaxSize(3);

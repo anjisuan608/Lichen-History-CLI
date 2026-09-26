@@ -79,6 +79,18 @@ gson 在 Paper/Velocity/BungeeCord 运行时均由平台提供，brigadier 只�
 普通 `jar` 任务被禁用（它与 `shadowJar` 默认文件名相同、会互相覆盖，可能发布出缺少 `common` 的空壳 jar），
 所以 `build/libs` 里不会再出现第二个版本的产物。
 
+### 字节码级别（分层）
+
+`common` 与 `velocity`/`bungee` 用 `--release 21`，`fabric`/`neoforge`/`forge`/`bukkit` 用 `--release 25`：
+
+| 模块 | release | 原因 |
+| --- | --- | --- |
+| common | 21 | 会被 shade 进下面两个插件，必须跟着降级 |
+| velocity / bungee | 21 | Velocity 3.x 要求 Java 21、BungeeCord 约 17/21；用 25 编译会在真实代理上 `UnsupportedClassVersionError` |
+| fabric / neoforge / forge / bukkit | 25 | 它们要读 Minecraft 26.2 / Paper 26.2 的 class major 69 类文件 |
+
+验证方式：解压产物看 class 文件头的 major 版本（65=Java 21，69=Java 25）。
+
 ---
 
 ## 3. 数据模型：mod 自持独立日志
@@ -107,9 +119,17 @@ gson 在 Paper/Velocity/BungeeCord 运行时均由平台提供，brigadier 只�
 | Bukkit / BungeeCord | `config.yml` |
 | Velocity | `plugins/lichenhistorycli/config.properties` |
 
-字段：`language`（Bukkit/代理端）、`enable_integrated_history`（mod）、`record_history`、`history_size`（0 = 不限，默认 500）。
+字段：
+- `language`（Bukkit/代理端）
+- `enable_integrated_history`（mod）
+- `record_history`、`history_size`（0 = 不限，默认 500）
+- **`record_forwarded_commands`（仅代理端，默认 `false`）**：是否记录"会被转发到后端服务器"的命令。
+  默认只记录**发给代理本身**的命令（Velocity 按 `PostCommandInvocationEvent` 的 `FORWARDED` 结果区分，
+  BungeeCord 按 `PluginManager.isExecutableCommand` 判定）。
+
 配置屏（Fabric/NeoForge/Forge）与 `reload` 子命令都会**真正重新读取配置并应用到存储**；
-写回时按 key 合并，用户的注释与自加键不会被抹掉。
+写回时按 key 合并，用户的注释与自加键不会被抹掉。**配置损坏时 `reload` 回 `config_reload_failed`**
+（不会回落成默认值还报"重载成功"）。
 
 ---
 
@@ -139,8 +159,16 @@ gson 在 Paper/Velocity/BungeeCord 运行时均由平台提供，brigadier 只�
   - Fabric：玩家聊天命令（`handleChatCommand`/`handleSignedChatCommand`）+ 控制台（`handleConsoleInput`）。
   - NeoForge/Forge：`CommandEvent`（含集成服务器）。
   - Bukkit：`ServerCommandEvent`（控制台）+ `PlayerCommandPreprocessEvent`（玩家）。
-- 以 `!` 开头的输入在**服务端不做展开**（NeoForge/Forge 控制台、Fabric/Bukkit 的 `/!!` 除外，
-  Bukkit 会展开玩家与控制台的 `!` 输入），这类输入**不入史**，避免历史里留下字面量 `!!`。
+- 以 `!` 开头的输入**不入史**（避免历史里留下字面量 `!!`）。各入口的展开支持情况：
+
+  | 入口 | 展开？ |
+  | --- | --- |
+  | Fabric **控制台**裸 `!!` / `!5` | ✅ `DedicatedServerMixin` |
+  | **Bukkit** 玩家 `/!!` 与控制台 `!!` | ✅ 且与命令形式走**同一道** `historycli.execute` 权限门 |
+  | Fabric / NeoForge / Forge **玩家**敲 `/!!` | ❌ 原样交给原版 → "未知命令" |
+  | NeoForge / Forge **控制台**裸 `!!` | ❌（见 §6 #1） |
+  | 任意端 `/historycliserver !!` | ✅ 全部平台 |
+  | 聊天框里多词的 `!` 输入（`!hello world`）、孤立 `!` | 不视为展开请求，**原样放行**（不能吞掉这类聊天） |
 
 ### 代理端
 
@@ -155,10 +183,18 @@ gson 在 Paper/Velocity/BungeeCord 运行时均由平台提供，brigadier 只�
 - Velocity 与 BungeeCord 都已鉴权；BungeeCord 控制台（以及其它非玩家发送者）直接放行。
 - **默认拒绝**：Velocity 玩家若未装权限插件（LuckPerms 等），`hasPermission` 一律为 false，
   两个代理命令都不可用——这是平台默认行为，需给玩家授予 `historycli.*` / `historycli.use`。
-- 命令入史来源：Velocity `CommandExecuteEvent`（玩家 + 控制台）；
-  BungeeCord 仅 `ChatEvent`（玩家 `/*` 输入）。**BungeeCord 控制台命令无法入史**：
-  BungeeCord API 1.21-R0.4 的事件清单里没有 `CommandEvent`（只有 Chat/TabComplete/Server* 等），
-  插件侧不存在可拦截控制台输入的钩子。
+- **查询/展开一律走命令形式**：`historycliproxy !!`、`historyproxy`——
+  **代理端没有聊天侧 `!!` 展开，控制台也不支持裸 `!!`/`!n`/`!-n`**。
+  （BungeeCord 曾用 `ChatEvent.setMessage` 做聊天侧展开，但 1.19+ 客户端的
+  `UpstreamBridge.handle(ClientCommand)` 会丢弃改写结果——展开无效还写了幽灵历史行，已移除。）
+- **入史来源与口径**（默认只记发给代理的命令，见 `record_forwarded_commands`）：
+  - **Velocity**：`PostCommandInvocationEvent`（执行后的结果回执）——
+    `EXECUTED`/`SYNTAX_ERROR`/`EXCEPTION` 记录，`FORWARDED`（转发到后端）仅在开关打开时记录；
+    另由 `CommandExecuteEvent` 补上「其它插件强制 forward/denied」这两种 Post 事件不会触发的场景。
+    控制台同样走 `executeAsync` → **控制台命令会入史**。
+  - **BungeeCord**：`ChatEvent` + `PluginManager.isExecutableCommand(命令名, sender)` 判定代理是否消费；
+    **控制台命令无法入史**：该版本 API 没有 `CommandEvent`（事件清单里只有 Chat/TabComplete/Server* 等），
+    插件侧不存在可拦截控制台输入的钩子。
 
 ### 历史展开（bash 语义）
 
@@ -167,6 +203,10 @@ gson 在 Paper/Velocity/BungeeCord 运行时均由平台提供，brigadier 只�
 - 平台在进入处理器之前就把本次调用记入了历史，`HistoryStore.dropSelfInvocation` 会先把这条
   **本次调用本身**剔除，否则 `!!` 会解析到自己 → 执行 → 再进入处理器 → 无限递归。
 - 展开结果若**仍然是 `!` 形式**（历史文件被外部编辑成字面量 `!!`），一律按"无匹配"拒绝，防止递归。
+- 展开结果若是 `historyxxx !n` 形态（被权限拒绝的调用也会被记录，从而留在历史里），
+  同样拒绝——它不以 `!` 开头，放行会派发回本命令再次展开；另有**深度上限 4** 兜底。
+- **孤立的 `!` 一律按"无匹配"处理**（bash 的 event not found 语义）：
+  否则聊天框里误敲一个感叹号就会重跑上一条（可能是 `/stop` 这类破坏性命令）。
 - 展开后把**展开结果**记入历史（不再记录 `!!` 这样的请求本身），并以「去掉前导 `/`」的命令执行。
 - 超长数字（`!99999999999999`）按"无匹配"处理，不抛 `NumberFormatException`。
 - 代理端展开到**后端服务器的命令**无法由代理执行：Velocity/BungeeCord 会回报
@@ -181,10 +221,15 @@ gson 在 Paper/Velocity/BungeeCord 运行时均由平台提供，brigadier 只�
 .\gradlew.ps1 :common:test   # 单测
 ```
 
-- 需要 JDK 25 + Gradle（wrapper 9.6.1）。
+- 需要 JDK 25 + Gradle（wrapper 9.6.1，已加 `distributionSha256Sum` 校验）。
 - 运行目录：客户端 `run/Client`，服务端 `run/Server`（Fabric/NeoForge）。
-- `common` 单测覆盖：`HistoryStore`（落盘/dirtyCount/`!!` 自引用/数字溢出）、`HistoryCommandHandler`
-  （reload 钩子、IO 错误、递归防护）、`HistoryParser`、`PermissionNode`、JSON/TOML 配置 IO（含注释保留）。
+- `common` 单测 **56 个、0 失败**，覆盖：
+  - `HistoryStore`：落盘 / `dirtyCount`（`-r` 不丢未落盘行、`delete`/`trim` 后的不变量）、
+    **`-w` 临时文件 + 原子替换**、`!!` 自引用剔除、数字溢出、孤立 `!` 拒绝、连续去重；
+  - `HistoryCommandHandler`：reload 钩子（含失败回执）、IO 错误转译、递归防护
+    （含 `historyxxx !n` 形态与深度上限）、畸形参数回报失败、存储未初始化；
+  - `HistoryParser`（`HELP` 与 `PARSE_ERROR` 的区分）、`PermissionNode`（`use` 只读语义、通配）；
+  - JSON/TOML 配置 IO：注释与自加键保留、**行尾注释的空格与缩进**、类型错值回落默认。
 
 ---
 
@@ -216,9 +261,18 @@ gson 在 Paper/Velocity/BungeeCord 运行时均由平台提供，brigadier 只�
 6. **Bukkit 记录点在 `EventPriority.LOW`**：若其它插件在其之后才取消该命令，该条仍会入史。
 7. **崩溃不丢历史仅限代理端**：Velocity/BungeeCord 每分钟定时异步落盘；
    Bukkit/mod 端仅在 `onDisable`/停服/断线时写盘，进程被 kill 会丢失本次会话新增记录。
+   （`-w` 已改为"写临时文件 + 原子替换"，落盘过程中崩溃不会再截断整个日志。）
 8. **BungeeCord 控制台命令不入史**：该版本 API 未提供 `CommandEvent`，无钩子可用（见 §4）。
    同理，BungeeCord 侧的控制台 `!` 展开也不可用。
-9. **各端均无运行时实测**（编译 + 单测通过）。
+9. **转发到后端的命令默认不入史**（`record_forwarded_commands=false`）：
+   代理历史只反映"发给代理本身的命令"；需要时打开该开关即可恢复全量记录。
+10. **代理端没有聊天侧 `!!` 展开，控制台也不支持裸 `!!`/`!n`/`!-n`**：
+   查询/展开一律用 `historycliproxy !!`、`historyproxy`（见 §4）。
+11. **mod 服务端玩家敲 `/!!` 不展开**（只有 Fabric 控制台与 Bukkit 两端会展开），见 §4 的展开支持表。
+12. **各端均无运行时实测**（编译 + 单测通过）。其中风险最高的是 **mixin 注入点**：
+    两个新增的 `sendChat` 注入、移动后的 `server.ServerGamePacketListenerMixin` 相对包名、
+    `DedicatedServer.handleConsoleInput` 是否为声明方法——全部 `required:true` + `defaultRequire:1`，
+    **方法名/签名错了会在启动时直接崩溃**，必须靠 `runClient`/`runServer` 冒烟验证。
 
 ---
 

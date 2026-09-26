@@ -1,5 +1,6 @@
 package org.anjisuan608.historycli;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -70,7 +71,13 @@ public final class HistoryCliConfigIO {
         try {
             JsonObject target = target(root, section);
             if (target != null && target.has(key)) {
-                return target.get(key).getAsBoolean();
+                JsonElement value = target.get(key);
+                if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean()) {
+                    return value.getAsBoolean();
+                }
+                // 不能直接 getAsBoolean()：Gson 会把 "maybe" 这种笔误 parseBoolean 成 false，
+                // 等于用一个拼写错误静默关掉 record_history
+                LOG.warning("Config '" + key + "' is not a boolean, falling back to default: " + def);
             }
         } catch (Exception e) {
             LOG.log(Level.FINE, "Bad boolean for " + key + ": " + e);
@@ -83,7 +90,12 @@ public final class HistoryCliConfigIO {
         try {
             JsonObject target = target(root, section);
             if (target != null && target.has(key)) {
-                return target.get(key).getAsInt();
+                JsonElement value = target.get(key);
+                if (value.isJsonPrimitive() && (value.getAsJsonPrimitive().isNumber()
+                        || value.getAsString().matches("-?\\d+"))) {
+                    return value.getAsInt();
+                }
+                LOG.warning("Config '" + key + "' is not an integer, falling back to default: " + def);
             }
         } catch (Exception e) {
             LOG.log(Level.FINE, "Bad integer for " + key + ": " + e);

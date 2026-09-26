@@ -6,6 +6,11 @@ base {
     archivesName = 'historycli-fabric'
 }
 
+tasks.withType(JavaCompile).configureEach {
+    // Minecraft 26.2 的类文件是 Java 25（major 69），必须用 25 编译
+    options.release = 25
+}
+
 loom {
     splitEnvironmentSourceSets()
     mods {
@@ -50,13 +55,24 @@ processResources {
     inputs.property 'version', version
     inputs.property 'mod_id', rootProject.ext.modId
     inputs.property 'mod_name', rootProject.ext.modName
+    inputs.property 'mod_license', rootProject.mod_license
+    inputs.property 'fabric_loader_version', rootProject.fabric_loader_version
+    inputs.property 'minecraft_version_range_fabric', rootProject.minecraft_version_range_fabric
     filesMatching('fabric.mod.json') {
-        expand 'version': version, 'mod_id': rootProject.ext.modId, 'mod_name': rootProject.ext.modName
+        expand 'version': version, 'mod_id': rootProject.ext.modId, 'mod_name': rootProject.ext.modName,
+                'mod_license': rootProject.mod_license, 'mod_authors': rootProject.mod_authors,
+                'mod_credits': rootProject.mod_credits,
+                'fabric_loader_version': rootProject.fabric_loader_version,
+                'minecraft_version_range': rootProject.minecraft_version_range_fabric
     }
     from(rootProject.file('icon')) {
         into('assets/' + rootProject.ext.modId)
+        // icon/README.md 是许可说明，不该被打进产物
+        exclude 'README.md'
     }
     from(rootProject.file('lang')) {
         into('assets/' + rootProject.ext.modId + '/lang')
     }
+    // LGPL-3.0 §4 要求二进制随附许可证文本
+    from(rootProject.file('LICENSE'))
 }

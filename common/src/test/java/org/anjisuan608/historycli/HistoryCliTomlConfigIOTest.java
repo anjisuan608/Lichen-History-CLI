@@ -141,6 +141,23 @@ class HistoryCliTomlConfigIOTest {
     }
 
     @Test
+    void saveKeepsIndentAndTrailingCommentSpacing() throws IOException {
+        Files.write(file(), List.of(
+                "[client]",
+                "    history_size = 500   # keep this comment"
+        ), StandardCharsets.UTF_8);
+
+        JsonObject root = HistoryCliTomlConfigIO.loadOrCreate(file());
+        root.getAsJsonObject("client").addProperty("history_size", 99);
+        HistoryCliTomlConfigIO.save(file(), root);
+
+        List<String> lines = Files.readAllLines(file(), StandardCharsets.UTF_8);
+        // 修复前会写成 "history_size = 99# keep this comment"（注释前空格丢失），
+        // 严格 TOML 解析器会拒收整个文件，导致用户配置整体回落到默认值
+        assertEquals("    history_size = 99   # keep this comment", lines.get(1));
+    }
+
+    @Test
     void defaultConfigRoundTrips() {
         JsonObject root = HistoryCliTomlConfigIO.parse(HistoryCliTomlConfigIO.DEFAULT_CONFIG);
         assertEquals(500, HistoryCliConfigIO.getInt(root, "client", "history_size", 0));

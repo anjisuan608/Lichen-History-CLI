@@ -51,7 +51,12 @@ subprojects {
 
     tasks.withType(JavaCompile).configureEach {
         options.encoding = 'UTF-8'
-        options.release = 25
+        // 默认 21：common 会被 shade 进 Velocity / BungeeCord 插件，而这两个代理的
+        // 运行时下限是 Java 21（BungeeCord 约 17/21、Velocity 3.x 为 21）——
+        // 用 25 编译会让插件在真实代理上抛 UnsupportedClassVersionError 而完全加载不了。
+        // 需要 25 的模块（fabric/neoforge/forge/bukkit，它们面对 MC 26.2 / Paper 26.2 的
+        // class major 69 类文件）在各自 build.gradle 里覆盖回来。
+        options.release = 21
     }
 
     tasks.withType(Test).configureEach {

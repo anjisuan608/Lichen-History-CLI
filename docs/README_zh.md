@@ -36,8 +36,6 @@
 - **服务端**：`/historycliserver`（别名 `historyclis`、`historycliser`）—— op 命令，管理服务端历史。
 - **代理端**：`historycliproxy` / `historyproxy` —— 代理端命令历史，由权限节点控制。
 
-在聊天框输入 `!!`（或 `/!!`）即可瞬间重跑上一条命令。
-
 ---
 
 ## 📜 许可证

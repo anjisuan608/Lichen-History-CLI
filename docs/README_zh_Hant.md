@@ -36,8 +36,6 @@
 - **伺服器端**：`/historycliserver`（別名 `historyclis`、`historycliser`）—— op 指令，管理伺服器歷史。
 - **代理端**：`historycliproxy` / `historyproxy` —— 代理端指令歷史，由權限節點控制。
 
-在聊天框輸入 `!!`（或 `/!!`）即可瞬間重跑上一條指令。
-
 ---
 
 ## 📜 授權條款

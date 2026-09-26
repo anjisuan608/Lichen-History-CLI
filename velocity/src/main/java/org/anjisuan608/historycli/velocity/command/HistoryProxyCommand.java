@@ -4,6 +4,7 @@ import org.anjisuan608.historycli.HistoryStore;
 
 import java.util.Map;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 /**
  * 普通命令 /historyproxy（别名 historypro/historyp）：bash 标准子集（不含 reload 与 ! 系列）。
@@ -12,7 +13,7 @@ import java.util.function.BooleanSupplier;
  */
 public final class HistoryProxyCommand extends VelocityHistoryCommand {
 
-    public HistoryProxyCommand(HistoryStore store, Map<String, String> messages,
+    public HistoryProxyCommand(HistoryStore store, Supplier<Map<String, String>> messages,
                                BooleanSupplier configReloader) {
         super(store, false, messages, null, configReloader);
     }

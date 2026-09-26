@@ -17,7 +17,6 @@ repositories {
 
 dependencies {
     compileOnly 'com.velocitypowered:velocity-api:' + libs.versions.velocityApi.get()
-    annotationProcessor 'com.velocitypowered:velocity-api:' + libs.versions.velocityApi.get()
     shade project(':common')
 }
 
@@ -28,6 +27,8 @@ processResources {
         expand 'version': version
     }
     from(rootProject.file('lang'))
+    // LGPL-3.0 §4 要求二进制随附许可证文本
+    from(rootProject.file('LICENSE'))
 }
 
 // 每个模块只发布 shadowJar 一份产物：普通 jar 与 shadowJar 的默认文件名相同，

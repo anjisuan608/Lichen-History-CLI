@@ -34,7 +34,11 @@ public abstract class ClientPacketListenerMixin {
         }
     }
 
-    /** 聊天框直接输入 {@code !!} / {@code !5}（不带前导 {@code /}）时的展开。 */
+    /**
+     * 聊天框直接输入 {@code !!} / {@code !5}（不带前导 {@code /}）时的展开。
+     * <p>原版只对 {@code /} 开头的输入调用 {@code sendCommand}，普通聊天走 {@code sendChat}；
+     * 不拦这里的话，「聊天框直接输入即展开」实际只会对 {@code /!!} 生效。</p>
+     */
     @Inject(method = "sendChat", at = @At("HEAD"), cancellable = true)
     private void historycli$expandChat(String message, CallbackInfo ci) {
         if (message == null || message.isEmpty() || !message.startsWith("!")) {
@@ -45,6 +49,9 @@ public abstract class ClientPacketListenerMixin {
             // 无匹配：interceptClientCommand 已经提示过 NO_MATCH
             ci.cancel();
             return;
+        }
+        if (result.equals(message)) {
+            return;   // 不是展开请求（多词的 ! 开头聊天）→ 原样作为聊天发出
         }
         // 展开结果是命令，必须走命令通道而不是聊天通道
         ((ClientPacketListener) (Object) this).sendCommand(result);

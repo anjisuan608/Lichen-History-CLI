@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import org.anjisuan608.historycli.HistoryStore;
+import org.anjisuan608.historycli.fabric.HistoryCliFabric;
 
 import java.nio.file.Path;
 
@@ -18,7 +19,12 @@ public final class HistoryCliFabricClient implements ClientModInitializer {
         file.getParent().toFile().mkdirs();
         store = new HistoryStore(file);
         FabricConfigHelper.apply(store);
-        store.read();
+        try {
+            store.read();
+        } catch (Exception e) {
+            // 日志损坏（非原子写崩溃的产物）时用空历史继续，而不是让客户端起不来
+            HistoryCliFabric.LOGGER.warn("Failed to read client history, starting empty", e);
+        }
 
         ClientCommandRegistrationCallback.EVENT.register(ClientHistoryCommand::register);
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {

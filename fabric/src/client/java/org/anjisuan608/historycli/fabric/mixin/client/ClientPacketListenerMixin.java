@@ -3,6 +3,7 @@ package org.anjisuan608.historycli.fabric.mixin.client;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.chat.Component;
+import org.anjisuan608.historycli.HistoryCommandHandler;
 import org.anjisuan608.historycli.fabric.client.ClientHistoryExpander;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -15,6 +16,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *
  * <p>{@code priority = 1500}（高于默认 1000）：本注入需要在 Fabric 客户端命令 API 之前运行，
  * 否则顺序未定义，可能导致本 mod 的命令未被记录或 {@code /!!} 被当成未知命令先处理。</p>
+ *
+ * <p>只有「单 token 的 bang 请求」（{@link HistoryCommandHandler#isBangRequest}）才拦截：
+ * 聊天框里以 {@code !} 开头的话很多（{@code !gg}、{@code !hello world}），那是聊天，
+ * 不得吞掉；以 {@code !} 开头的命令也一律不入史（见 AGENTS §6）。</p>
  */
 @Mixin(value = ClientPacketListener.class, priority = 1500)
 public abstract class ClientPacketListenerMixin {
@@ -25,8 +30,17 @@ public abstract class ClientPacketListenerMixin {
             return;
         }
         if (!command.startsWith("!")) {
-            // 普通命令：记录到本 mod 自持日志
-            org.anjisuan608.historycli.fabric.client.HistoryCliFabricClient.store.add(command);
+            // 普通命令：记录到本 mod 自持日志（store 是懒初始化的，必须判空，
+            // 否则 mixin 内 NPE 会直接打断命令发送）
+            org.anjisuan608.historycli.HistoryStore store =
+                    org.anjisuan608.historycli.fabric.client.HistoryCliFabricClient.store;
+            if (store != null) {
+                store.add(command);
+            }
+            return;
+        }
+        if (!HistoryCommandHandler.isBangRequest(command)) {
+            // `!foo bar` 这类多词输入不是展开请求：原样放行，且按约定不入史
             return;
         }
         String expanded = ClientHistoryExpander.expand(command);
@@ -40,12 +54,12 @@ public abstract class ClientPacketListenerMixin {
     /**
      * 聊天框直接输入 {@code !!} / {@code !5}（不带前导 {@code /}）时的展开。
      * <p>原版只对 {@code /} 开头的输入调用 {@code sendCommand}，普通聊天走 {@code sendChat}；
-     * 不拦这里的话，文档承诺的「聊天框直接输入即展开」实际只会对 {@code /!!} 生效。</p>
+     * 不拦这里的话，「聊天框直接输入即展开」实际只会对 {@code /!!} 生效。</p>
      */
     @Inject(method = "sendChat", at = @At("HEAD"), cancellable = true)
     private void historycli$expandChat(String message, CallbackInfo ci) {
-        if (message == null || message.isEmpty() || !message.startsWith("!")) {
-            return;
+        if (!HistoryCommandHandler.isBangRequest(message)) {
+            return;   // 普通聊天（含 !gg、!hello world、孤立 !）原样发出
         }
         String expanded = ClientHistoryExpander.expand(message);
         if (!historycli$rejectIfBang(message, expanded, ci)) {
@@ -68,7 +82,7 @@ public abstract class ClientPacketListenerMixin {
         Minecraft mc = Minecraft.getInstance();
         if (mc.gui != null && mc.gui.hud != null) {
             mc.gui.hud.getChat().addClientSystemMessage(
-                    Component.translatable(org.anjisuan608.historycli.HistoryCommandHandler.Keys.NO_MATCH, raw));
+                    Component.translatable(HistoryCommandHandler.Keys.NO_MATCH, raw));
         }
         ci.cancel();
         return true;

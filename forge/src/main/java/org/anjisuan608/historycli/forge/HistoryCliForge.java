@@ -46,6 +46,10 @@ public final class HistoryCliForge {
         MinecraftForge.EVENT_BUS.register(this);
         if (net.minecraftforge.fml.loading.FMLEnvironment.dist.isClient()) {
             MinecraftForge.EVENT_BUS.register(ForgeClientEvents.INSTANCE);
+            // 没有这行，Forge 玩家在模组列表里永远打不开本 mod 的配置界面
+            // （HistoryConfigScreen 只有声明、从未被任何地方构造）
+            MinecraftForge.registerConfigScreen(
+                    parent -> new org.anjisuan608.historycli.forge.client.HistoryConfigScreen(parent));
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 if (clientStore != null) {
                     clientStore.write();
@@ -68,6 +72,10 @@ public final class HistoryCliForge {
             return command;
         }
         if (command.startsWith("!")) {
+            if (!HistoryCommandHandler.isBangRequest(command)) {
+                // `!foo bar` 这类多词输入不是展开请求：原样放行，且按约定不入史
+                return command;
+            }
             String expanded = clientStore.resolve(command);
             if (expanded == null || expanded.startsWith("!")) {
                 // 无匹配，或匹配到历史中的字面量 `!!` 行（再次展开会无限递归）
@@ -117,19 +125,39 @@ public final class HistoryCliForge {
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
         MinecraftServer server = event.getServer();
-        if (server != null && server.isSingleplayer() && enableIntegratedHistory) {
-            try {
-                Path worldData = server.getWorldPath(LevelResource.ROOT).resolve("data").resolve("lichenhistorycli");
-                worldData.toFile().mkdirs();
-                HistoryStore store = new HistoryStore(worldData.resolve("command_history.log"));
-                serverStore = store;
-                applyServerConfig();
-                store.read();
-                LOGGER.info("Lichen History CLI (integrated server) history at {}", worldData.resolve("command_history.log"));
-            } catch (Exception e) {
-                LOGGER.warn("Failed to init integrated history", e);
-            }
+        if (server == null || !server.isSingleplayer()) {
+            return;   // 专用服务器的 store 在 RegisterCommandsEvent 里已建好
         }
+        // 换存档 / 关掉集成历史：先写盘并丢弃旧 store，
+        // 否则 serverStore 仍指向世界 A 的文件，世界 B 的命令会写进世界 A 的日志
+        dropStaleServerStore();
+        if (!enableIntegratedHistory) {
+            return;
+        }
+        try {
+            Path worldData = server.getWorldPath(LevelResource.ROOT).resolve("data").resolve("lichenhistorycli");
+            worldData.toFile().mkdirs();
+            HistoryStore store = new HistoryStore(worldData.resolve("command_history.log"));
+            serverStore = store;
+            applyServerConfig();
+            store.read();
+            LOGGER.info("Lichen History CLI (integrated server) history at {}", worldData.resolve("command_history.log"));
+        } catch (Exception e) {
+            LOGGER.warn("Failed to init integrated history", e);
+        }
+    }
+
+    /** 写盘并丢弃当前的集成服务器 store（换存档/关闭集成历史时调用）。 */
+    private static void dropStaleServerStore() {
+        if (serverStore == null) {
+            return;
+        }
+        try {
+            serverStore.write();
+        } catch (Exception e) {
+            LOGGER.warn("Failed to flush previous integrated history", e);
+        }
+        serverStore = null;
     }
 
     @SubscribeEvent
@@ -173,7 +201,7 @@ public final class HistoryCliForge {
         HistoryStore store = new HistoryStore(file);
         serverStore = store;
         applyServerConfig();
-        store.read();
+        readQuietly(store, "server");
         LOGGER.info("Lichen History CLI (Forge server) loaded, history at {}", file);
     }
 
@@ -186,7 +214,20 @@ public final class HistoryCliForge {
         HistoryStore store = new HistoryStore(file);
         clientStore = store;
         applyClientConfig();
-        store.read();
+        readQuietly(store, "client");
+    }
+
+    /**
+     * 读取历史文件；失败时用空历史继续。
+     * <p>日志损坏（非原子写崩溃的产物）会让 {@code Files.readAllLines} 抛
+     * {@link java.io.UncheckedIOException}，若不接住，mod 会在命令注册阶段直接挂掉。</p>
+     */
+    private static void readQuietly(HistoryStore store, String side) {
+        try {
+            store.read();
+        } catch (Exception e) {
+            LOGGER.warn("Failed to read {} history, starting empty", side, e);
+        }
     }
 
     private void readConfig() {
@@ -206,10 +247,15 @@ public final class HistoryCliForge {
     /**
      * 供 {@code /historycliserver reload} 调用：重新读取配置并应用到历史存储。
      *
-     * @return 恒为 true
+     * @return true=已重载；false=配置损坏（保留当前设置，不回落成默认值还报成功）
      */
     public static boolean reloadConfig() {
-        applyConfig(HistoryCliTomlConfigIO.loadOrCreate(configFile()));
+        JsonObject root = HistoryCliTomlConfigIO.loadOrCreate(configFile());
+        if (root.entrySet().isEmpty()) {
+            LOGGER.warn("lichen-history-cli.toml could not be parsed, keeping current settings");
+            return false;
+        }
+        applyConfig(root);
         return true;
     }
 }

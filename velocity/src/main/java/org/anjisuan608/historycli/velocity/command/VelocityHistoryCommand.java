@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 /**
  * Velocity 命令基类：两个命令共用注册/补全/鉴权/分发逻辑。
@@ -31,11 +32,11 @@ abstract class VelocityHistoryCommand implements SimpleCommand {
 
     private final HistoryStore store;
     private final boolean allowFull;
-    private final Map<String, String> messages;
+    private final Supplier<Map<String, String>> messages;
     private final ProxyServer server;
     private final BooleanSupplier configReloader;
 
-    VelocityHistoryCommand(HistoryStore store, boolean allowFull, Map<String, String> messages,
+    VelocityHistoryCommand(HistoryStore store, boolean allowFull, Supplier<Map<String, String>> messages,
                            ProxyServer server, BooleanSupplier configReloader) {
         this.store = store;
         this.allowFull = allowFull;
@@ -45,7 +46,8 @@ abstract class VelocityHistoryCommand implements SimpleCommand {
     }
 
     @Override
-    public void execute(Invocation invocation) {        CommandSource source = invocation.source();
+    public void execute(Invocation invocation) {
+        CommandSource source = invocation.source();
         if (!permitted(source, invocation.arguments())) {
             source.sendMessage(Component.text(tr(HistoryCommandHandler.Keys.NO_PERMISSION))
                     .color(NamedTextColor.RED));
@@ -85,17 +87,17 @@ abstract class VelocityHistoryCommand implements SimpleCommand {
     }
 
     private String tr(String key, Object... args) {
-        return VelocityHistoryPlugin.tr(messages, key, args);
+        return VelocityHistoryPlugin.tr(messages.get(), key, args);
     }
 
     private static final class VelocityHandler extends HistoryCommandHandler {
 
-        private final Map<String, String> messages;
+        private final Supplier<Map<String, String>> messages;
         private final ProxyServer server;
         private final BooleanSupplier configReloader;
         private final CommandSource source;
 
-        VelocityHandler(HistoryStore store, boolean allowFull, Map<String, String> messages,
+        VelocityHandler(HistoryStore store, boolean allowFull, Supplier<Map<String, String>> messages,
                         ProxyServer server, BooleanSupplier configReloader, CommandSource source) {
             super(store, allowFull);
             this.messages = messages;
@@ -106,12 +108,12 @@ abstract class VelocityHistoryCommand implements SimpleCommand {
 
         @Override
         protected void sendMessage(String key, Object... args) {
-            source.sendMessage(Component.text(VelocityHistoryPlugin.tr(messages, key, args)));
+            source.sendMessage(Component.text(VelocityHistoryPlugin.tr(messages.get(), key, args)));
         }
 
         @Override
         protected void sendError(String key, Object... args) {
-            source.sendMessage(Component.text(VelocityHistoryPlugin.tr(messages, key, args))
+            source.sendMessage(Component.text(VelocityHistoryPlugin.tr(messages.get(), key, args))
                     .color(NamedTextColor.RED));
         }
 
@@ -123,15 +125,24 @@ abstract class VelocityHistoryCommand implements SimpleCommand {
         @Override
         protected void executeCommand(String command) {
             if (server == null) {
+                // 普通命令不支持 ! 展开（common 层已拒绝），这里是防御：
+                // 万一走到，也要给明确反馈而不是静默无操作
+                sendError(HistoryCommandHandler.Keys.NOT_EXECUTABLE, command);
                 return;
             }
-            // executeImmediatelyAsync 对「代理端不认识的命令」返回 false 且不作任何提示，
-            // 展开到后端服务器的命令会静默无操作——这里明确反馈给用户。
-            server.getCommandManager().executeImmediatelyAsync(source, command)
+            // 用 executeAsync 而不是 executeImmediatelyAsync：
+            // 后者绕过其它插件的 CommandExecuteEvent，会让黑名单/审计类插件对 ! 展开的命令失效。
+            // 展开结果由本类先 store.add 一次，随后录制事件会再记一次 → 连续重复被 ignoredups 吞掉。
+            server.getCommandManager().executeAsync(source, command)
                     .thenAccept(executed -> {
                         if (executed == null || !executed) {
                             sendError(HistoryCommandHandler.Keys.NOT_EXECUTABLE, command);
                         }
+                    })
+                    .exceptionally(ex -> {
+                        // 插件命令抛异常时 future 以异常完成，原先用户收不到任何反馈
+                        sendError(HistoryCommandHandler.Keys.NOT_EXECUTABLE, command);
+                        return null;
                     });
         }
 

@@ -6,6 +6,11 @@ base {
     archivesName = 'historycli-bukkit'
 }
 
+tasks.withType(JavaCompile).configureEach {
+    // Paper 26.2 API 的类文件是 Java 25（major 69），必须用 25 编译
+    options.release = 25
+}
+
 configurations {
     shade
     implementation.extendsFrom shade
@@ -27,6 +32,8 @@ processResources {
         expand 'version': version
     }
     from(rootProject.file('lang'))
+    // LGPL-3.0 §4 要求二进制随附许可证文本
+    from(rootProject.file('LICENSE'))
 }
 
 // 每个模块只发布 shadowJar 一份产物：普通 jar 与 shadowJar 的默认文件名相同，

@@ -31,26 +31,10 @@ public final class PermissionNode {
     public static final String USE = "historycli.use";
 
     /**
-     * 已授予的单个节点是否足以满足所需节点。
+     * 用平台的权限查询回调判定某个动作是否被授权（{@code historycli.*} 与 {@code use} 一并计入）。
      *
-     * @param granted 已授予的节点（调用方逐个传入其拥有的节点）
-     * @param required 所需节点
-     */
-    public static boolean implies(String granted, String required) {
-        if (granted == null || required == null) {
-            return false;
-        }
-        if (ALL.equals(granted) || granted.equals(required)) {
-            return true;
-        }
-        // historycli.use 只放行只读的列表/帮助。
-        return USE.equals(granted) && LIST.equals(required);
-    }
-
-    /**
-     * 用平台的权限查询回调判定某个动作是否被授权（通配与 {@code use} 一并计入）。
-     *
-     * <p>平台侧写法：{@code PermissionNode.isGranted(source::hasPermission, action)}。</p>
+     * <p>平台侧写法：{@code PermissionNode.isGranted(source::hasPermission, action)}——
+     * 这是唯一被各平台使用的判定入口（原先还有一个没有调用方的 {@code implies(String, String)}，已删除）。</p>
      *
      * @param hasPermission 平台的单节点权限查询（如 {@code player::hasPermission}）
      * @param action        待判定的解析动作

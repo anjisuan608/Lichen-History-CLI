@@ -32,6 +32,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: historycli-jars
+          # 一个 jar 都没产出时必须让 CI 失败，否则会静默发布空 release
+          if-no-files-found: error
           path: |
             fabric/build/libs/historycli-fabric-*.jar
             neoforge/build/libs/historycli-neoforge-*.jar

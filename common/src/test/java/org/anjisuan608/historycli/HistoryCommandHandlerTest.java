@@ -218,4 +218,55 @@ class HistoryCommandHandlerTest {
         FakeHandler noStore = new FakeHandler(null, true);
         assertFalse(noStore.handle(new String[0]), "存储未初始化应返回失败");
     }
+
+    @Test
+    void bangRequestRecognition() {
+        // 只有"单 token 的 ! 输入"才是展开请求；聊天里 !gg / !hello world / 孤立 ! 必须放行
+        assertTrue(HistoryCommandHandler.isBangRequest("!!"));
+        assertTrue(HistoryCommandHandler.isBangRequest("!5"));
+        assertTrue(HistoryCommandHandler.isBangRequest("!-2"));
+        assertTrue(HistoryCommandHandler.isBangRequest("!tp"));
+        assertFalse(HistoryCommandHandler.isBangRequest("!"));
+        assertFalse(HistoryCommandHandler.isBangRequest("!gg world"));
+        assertFalse(HistoryCommandHandler.isBangRequest("!hello world"));
+        assertFalse(HistoryCommandHandler.isBangRequest("say hi"));
+        assertFalse(HistoryCommandHandler.isBangRequest(null));
+    }
+
+    @Test
+    void parseErrorShowsHelpButReportsFailure() {
+        FakeHandler h = new FakeHandler(store(), true);
+        assertFalse(h.handle(new String[]{"garbage"}), "参数看不懂要判失败（供命令方块/自动化感知）");
+        assertTrue(h.messages.stream().anyMatch(m -> m.equals("historycli.help.title")),
+                "但仍然要给用户看到帮助");
+        assertTrue(h.handle(new String[]{"help"}), "显式 help 是成功");
+    }
+
+    @Test
+    void refusesExpandingIntoOwnBangInvocation() {
+        // 历史里出现 "historycliserver !1" 形态的行（被拒绝的调用也会被记录）时，
+        // 展开结果不以 ! 开头，但派发回本命令会再次展开 → 必须在 common 层挡住
+        HistoryStore store = new HistoryStore(tempDir.resolve("unused"));
+        store.setMaxSize(0);
+        store.add("historycliserver !1");
+        store.add("say hi");
+
+        FakeHandler h = new FakeHandler(store, true);
+        h.handle(new String[]{"!1"});
+
+        assertTrue(h.executed.isEmpty(), "不得把 historyxxx !n 再次派发出去（会无限递归）");
+        assertTrue(h.errors.contains("historycli.msg.no_match !1"));
+    }
+
+    @Test
+    void allowsExpandingIntoNormalTwoTokenCommands() {
+        HistoryStore store = new HistoryStore(tempDir.resolve("unused"));
+        store.setMaxSize(0);
+        store.add("gamerule doDaylightCycle false");
+
+        FakeHandler h = new FakeHandler(store, true);
+        h.handle(new String[]{"!!"});
+
+        assertEquals(java.util.List.of("gamerule doDaylightCycle false"), h.executed);
+    }
 }

@@ -40,6 +40,14 @@ public abstract class HistoryCommandHandler {
         public static final String HELP_BANG = "historycli.help.bang";
     }
 
+    /**
+     * 展开递归深度上限：同一线程内（Bukkit/Fabric/NeoForge/Forge 的同步派发）最多允许几层
+     * {@code !} 展开。内容层的 {@link #isOwnBangInvocation} 已能挡住已知形态，
+     * 这里再加一道兜底，避免历史里出现未预料到的形态时把命令线程打栈溢出。
+     */
+    private static final int MAX_EXPANSION_DEPTH = 4;
+    private static final ThreadLocal<Integer> EXPANSION_DEPTH = ThreadLocal.withInitial(() -> 0);
+
     private final HistoryStore store;
     private final boolean allowFull;
 
@@ -119,6 +127,10 @@ public abstract class HistoryCommandHandler {
             case HELP:
                 help();
                 return true;
+            case PARSE_ERROR:
+                // 参数看不懂：给用户看帮助，但对自动化回报失败
+                help();
+                return false;
             case EXECUTE:
                 if (!allowFull) {
                     sendError(Keys.UNSUPPORTED_PLAIN);
@@ -178,19 +190,71 @@ public abstract class HistoryCommandHandler {
         // 平台在进入处理器前已把本次调用记入历史；不剔除的话 !! / !-1 / !n 会解析到自己，
         // 执行后再次进入处理器，形成无限递归（StackOverflowError）。
         store.dropSelfInvocation(bang);
+        int depth = EXPANSION_DEPTH.get();
+        if (depth >= MAX_EXPANSION_DEPTH) {
+            sendError(Keys.NO_MATCH, bang);
+            return false;
+        }
         String expanded = store.resolve(bang);
         if (expanded == null) {
             sendError(Keys.NO_MATCH, bang);
             return false;
         }
         String command = stripLeadingSlash(expanded);
-        // 历史文件可被外部编辑，若某行本身就是 `!!` 之类的形式，直接执行会再次进入本方法递归。
-        if (command.startsWith("!")) {
+        // 两类展开结果会再次进入本处理器，必须拒绝：
+        // 1) 形如 `!!` / `!5` 的字面量（历史文件被外部编辑过）；
+        // 2) 形如 `historycliserver !1` 的记录行——它不以 ! 开头，但第二段是 bang 表达式，
+        //    派发回本命令后会再次展开（这类行可能由"被拒绝但已被记录"的调用产生）。
+        if (command.startsWith("!") || isOwnBangInvocation(command)) {
             sendError(Keys.NO_MATCH, bang);
             return false;
         }
-        store.add(expanded);
-        executeCommand(command);
+        EXPANSION_DEPTH.set(depth + 1);
+        try {
+            store.add(expanded);
+            executeCommand(command);
+            return true;
+        } finally {
+            EXPANSION_DEPTH.set(depth);
+        }
+    }
+
+    /**
+     * 判断展开结果是否是「本类命令 + bang 表达式」的形态（如 {@code historycliserver !1}）。
+     * <p>这类行不以 {@code !} 开头，放行会派发回本命令并再次展开，形成无限递归。
+     * 之所以还要限定首词以 {@code history} 开头：所有平台的命令名与别名
+     * （historyclient/historycli/historycliserver/…/historyproxy/…）都以此为前缀，
+     * 这样 {@code msg !bob} 这类首参带 {@code !} 的正常命令不会被误伤。</p>
+     */
+    private static boolean isOwnBangInvocation(String command) {
+        int firstSpace = command.indexOf(' ');
+        if (firstSpace <= 0 || firstSpace + 1 >= command.length()) {
+            return false;
+        }
+        if (command.charAt(firstSpace + 1) != '!') {
+            return false;
+        }
+        return command.regionMatches(true, 0, "history", 0, "history".length());
+    }
+
+    /**
+     * 是否是一条「单 token 的 bang 展开请求」（{@code !!}、{@code !5}、{@code !-2}、{@code !tp}）。
+     *
+     * <p>客户端聊天入口必须先过这一关再决定拦不拦：聊天框里以 {@code !} 开头的话很多
+     * （{@code !gg}、{@code !hello world}），它们是<b>聊天</b>而不是历史展开请求，
+     * 一律吞掉会让玩家发不出这类消息；孤立一个 {@code !} 也放行。
+     * 而 {@code !string} 的语义本来就是"一个词"，多词输入本就不该被当成展开请求。</p>
+     */
+    public static boolean isBangRequest(String text) {
+        if (text == null || text.length() < 2 || !text.startsWith("!")) {
+            return false;
+        }
+        for (int i = 1; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+                return false;
+            }
+        }
         return true;
     }
 
@@ -205,7 +269,11 @@ public abstract class HistoryCommandHandler {
         }
     }
 
-    /** 去掉命令的前导 {@code /}（历史文件存的是带斜杠的原样输入）。 */
+    /**
+     * 去掉命令的前导 {@code /}。
+     * <p>历史里两种形态都可能：聊天/事件路径录入的是不带斜杠的命令，
+     * 而控制台原样录入的行可能带斜杠（如 {@code /say hi}）；执行前统一去掉。</p>
+     */
     public static String stripLeadingSlash(String command) {
         return command != null && command.startsWith("/") ? command.substring(1) : command;
     }
