@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "package": "org.anjisuan608.historycli.forge.mixin.client",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [],
+  "client": [
+    "ClientPacketListenerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

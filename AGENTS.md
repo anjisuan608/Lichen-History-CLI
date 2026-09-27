@@ -250,11 +250,15 @@ gson 在 Paper/Velocity/BungeeCord 运行时均由平台提供，brigadier 只�
 
 1. **NeoForge/Forge 控制台直接输入 `!5` 不展开**（输入经 JLine 直达，不触发 `CommandEvent`）；
    用 `historycliserver !5` 可用。
-2. **Forge 客户端无法记录经 `/` 发出的命令**：Forge 26.x 的 `ClientChatEvent` 只由
-   `ClientPacketListener.sendChat` 触发，命令走 `sendCommand` 且没有对应事件；
-   本模块也未启用 Mixin（Forge 的 mixin 需要额外的插件与 refmap 配置，未验证）。
-   因此 Forge 客户端历史只会在跨会话时读到旧文件，**本次会话新敲的 `/命令` 不会入史**；
-   裸 `!!` 展开可用。
+2. ~~**Forge 客户端无法记录经 `/` 发出的命令**~~ → **已修复，待运行时复验**：
+   Forge 26.x 的 `ClientChatEvent` 只由 `sendChat` 触发，`sendCommand` **不发任何事件**
+   （其字节码头部是 `ClientCommandHandler.runCommand`，直接发包）——因此已给 Forge 模块补上 mixin：
+   `lichenhistorycli.forge.mixins.json` + `ClientPacketListenerMixin`，
+   生产靠 jar manifest 的 `MixinConfigs` 属性、开发环境靠 FG runs 的 `-mixin.config=` 参数发现
+   （FML 的 `ModDirTransformerDiscoverer` 就是扫描以 `-mixin`/`--mixin` 开头的启动参数）。
+   `compatibilityLevel` 只能写 **`JAVA_21`**——Forge 26.2 带的是 Mixin 0.8.7，
+   其 `CompatibilityLevel` 枚举最高只到 `JAVA_21`，写 `JAVA_25` 会在加载时抛
+   `MixinInitialisationError`。裸 `!!`（走 `sendChat`）仍然可用。
 3. **以 `!` 开头的真实命令不会入史**（各平台统一）：无法区分"历史展开请求"与"以此为名的命令"。
 4. **代理端展开只能执行代理端注册的命令**：展开到后端的命令会回报 `not_executable`。
 5. **客户端短名可能遮蔽服务端同名命令**（Fabric 客户端命令在客户端命令树中优先）。
@@ -269,10 +273,20 @@ gson 在 Paper/Velocity/BungeeCord 运行时均由平台提供，brigadier 只�
 10. **代理端没有聊天侧 `!!` 展开，控制台也不支持裸 `!!`/`!n`/`!-n`**：
    查询/展开一律用 `historycliproxy !!`、`historyproxy`（见 §4）。
 11. **mod 服务端玩家敲 `/!!` 不展开**（只有 Fabric 控制台与 Bukkit 两端会展开），见 §4 的展开支持表。
-12. **各端均无运行时实测**（编译 + 单测通过）。其中风险最高的是 **mixin 注入点**：
-    两个新增的 `sendChat` 注入、移动后的 `server.ServerGamePacketListenerMixin` 相对包名、
-    `DedicatedServer.handleConsoleInput` 是否为声明方法——全部 `required:true` + `defaultRequire:1`，
-    **方法名/签名错了会在启动时直接崩溃**，必须靠 `runClient`/`runServer` 冒烟验证。
+12. **运行时实测状态**（编译 + 单测全部通过）：
+    - ✅ **NeoForge 客户端已实测**（`gradlew :neoforge:runClient`）：日志证明
+      `Mixing ClientPacketListenerMixin ... into ClientPacketListener`、两个 `@Inject` 均应用成功，
+      敲 `/time set ...` 后 `/history` 能列出并落盘到 `local/historycli/command_history.log`。
+    - ⬜ 其余端待实测：Fabric 客户端/服务端、Forge 客户端（新 mixin）、Bukkit/代理端。
+    - **静态已核对**：全部 `@Inject` 目标方法都存在于对应 26.2 jar 中
+      （`handleChatCommand`/`handleSignedChatCommand`/`handleConsoleInput`/`sendCommand`/`sendChat`），
+      参数签名与注入方法一致——历史上（2026-08-31 的日志）旧 jar 用了不存在的 `handleCommand`，
+      导致 `MixinApplyError` + **玩家无法进入服务器**（`Couldn't place player in world`），
+      这类错误必须靠 `runClient`/`runServer` 才能拦住。
+13. **`pack.mcmeta` 必须带 `min_format` / `max_format`**：MC 26.x 对高版本号的 pack
+    （>64）强制要求这两个字段，缺了会报
+    `Pack declares support for version newer than 81, but is missing mandatory fields min_format and max_format`
+    并回退解析——直接影响装在 `assets/<modid>/lang/` 下的翻译文件。
 
 ---
 

@@ -30,6 +30,22 @@ dependencies {
     shade project(':common')
 }
 
+// 开发用运行配置（FG7 的 DSL 是 `minecraft { runs { ... } }`，用 `client = true` 而非 `client()`；
+// dev 下 mixin 靠 -mixin.config 参数发现，生产靠 jar manifest 的 MixinConfigs）
+minecraft {
+    runs {
+        client {
+            client = true
+            workingDir = file('run/Client')
+            args '-mixin.config=lichenhistorycli.forge.mixins.json'
+        }
+        server {
+            workingDir = file('run/Server')
+            args '--nogui', '-mixin.config=lichenhistorycli.forge.mixins.json'
+        }
+    }
+}
+
 processResources {
     def version = project.version
     inputs.property 'version', version
@@ -65,6 +81,11 @@ processResources {
 // 让 build/libs 里只留下一个可发布的 jar。
 jar {
     enabled = false
+    manifest {
+        // Forge 的 mixin 配置发现机制：FML 读 jar 清单里的 MixinConfigs 属性
+        // （参考同仓库 forge/temp/SereneSeasons 的 Forge 模块）。dev 运行走 runs 里的 -mixin.config。
+        attributes('MixinConfigs': 'lichenhistorycli.forge.mixins.json')
+    }
 }
 
 shadowJar {
@@ -72,6 +93,10 @@ shadowJar {
     archiveClassifier = ''
     dependencies {
         include(dependency('org.anjisuan608.historycli:.*'))
+    }
+    manifest {
+        // shadowJar 不自动继承 jar 的 manifest，必须单独声明（这是实际发布的产物）
+        attributes('MixinConfigs': 'lichenhistorycli.forge.mixins.json')
     }
 }
 
