@@ -55,13 +55,13 @@ processResources {
     // 增量构建可能继续用上一次展开好的 mods.toml（版本范围会悄悄失效）
     inputs.property 'mod_authors', rootProject.mod_authors
     inputs.property 'mod_credits', rootProject.mod_credits
-    inputs.property 'neo_version', rootProject.neo_version
+    inputs.property 'neo_version_min', rootProject.neo_version_min
     inputs.property 'minecraft_version_range', rootProject.minecraft_version_range
     filesMatching('META-INF/neoforge.mods.toml') {
         expand 'version': version, 'mod_id': rootProject.ext.modId,
                 'mod_name': rootProject.ext.modName, 'mod_license': rootProject.mod_license,
                 'mod_authors': rootProject.mod_authors, 'mod_credits': rootProject.mod_credits,
-                'neo_version': rootProject.neo_version,
+                'neo_version_min': rootProject.neo_version_min,
                 'minecraft_version_range': rootProject.minecraft_version_range
     }
     from(rootProject.file('icon')) {

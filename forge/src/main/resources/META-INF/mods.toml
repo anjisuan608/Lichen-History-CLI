@@ -19,7 +19,8 @@ logoFile = "icon.png"
 modId = "forge"
 mandatory = true
 type = "required"
-versionRange = "[${forge_version},)"
+# 下限用 forge_version_min（可独立于构建版本 forge_version 调整）
+versionRange = "[${forge_version_min},)"
 ordering = "NONE"
 side = "BOTH"
 

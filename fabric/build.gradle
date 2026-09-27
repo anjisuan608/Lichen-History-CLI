@@ -56,13 +56,13 @@ processResources {
     inputs.property 'mod_id', rootProject.ext.modId
     inputs.property 'mod_name', rootProject.ext.modName
     inputs.property 'mod_license', rootProject.mod_license
-    inputs.property 'fabric_loader_version', rootProject.fabric_loader_version
+    inputs.property 'fabric_loader_version_min', rootProject.fabric_loader_version_min
     inputs.property 'minecraft_version_range_fabric', rootProject.minecraft_version_range_fabric
     filesMatching('fabric.mod.json') {
         expand 'version': version, 'mod_id': rootProject.ext.modId, 'mod_name': rootProject.ext.modName,
                 'mod_license': rootProject.mod_license, 'mod_authors': rootProject.mod_authors,
                 'mod_credits': rootProject.mod_credits,
-                'fabric_loader_version': rootProject.fabric_loader_version,
+                'fabric_loader_version_min': rootProject.fabric_loader_version_min,
                 'minecraft_version_range': rootProject.minecraft_version_range_fabric
     }
     from(rootProject.file('icon')) {

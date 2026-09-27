@@ -20,7 +20,9 @@ logoFile = "icon.png"
 [[dependencies.${mod_id}]]
 modId = "neoforge"
 type = "required"
-versionRange = "[${neo_version},)"
+# 下限用 neo_version_min（可独立于构建版本 neo_version 调整），
+# 而不是构建版本本身——否则每升一次构建版本，老用户就被自动拒载。
+versionRange = "[${neo_version_min},)"
 ordering = "NONE"
 side = "BOTH"
 

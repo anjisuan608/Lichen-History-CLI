@@ -44,7 +44,7 @@
 
 ---
 
-## 2. 构建结构（单仓库多模块，仿 LuckPerms）
+## 2. 构建结构（单仓库多模块，架构参考开源项目 LuckPerms）
 
 ```
 settings.gradle              # include :common :fabric :neoforge :forge :bukkit :velocity :bungee
@@ -74,6 +74,38 @@ gson 在 Paper/Velocity/BungeeCord 运行时均由平台提供，brigadier 只�
 - GitHub Actions push → `26-dev.<sha 前 7 位>`
 - GitHub Actions pull_request → `26-pr.<sha 前 7 位>`（与 push 区分）
 - tag 发版 → `26-<标签名去前导 v>`
+
+### 构建版本 vs 最低版本（`gradle.properties`）
+
+**编译用的版本**与**发布给用户的下限**是分开的两个键（对应 NeoForge MDK 的 `*_min` 设计）：
+
+| 构建版本（编译/dev 用） | 最低版本（写进元数据，低于它拒载） |
+| --- | --- |
+| `minecraft_version=26.2` | `minecraft_version_range=[26.2,27)`（Fabric 用 `minecraft_version_range_fabric=>=26.2 <27`，语法不同） |
+| `neo_version=26.2.0.69` | `neo_version_min=26.2.0.69` → `neoforge.mods.toml` 的 `versionRange` |
+| `forge_version=65.1.3` | `forge_version_min=65.1.3` → `mods.toml` 的 `versionRange` |
+| `fabric_loader_version=0.19.3` | `fabric_loader_version_min=0.19.3` → `fabric.mod.json` 的 `depends.fabricloader` |
+
+初始下限 = 构建版本（只在这些版本上验证过）；日后在更老版本上实测通过，**单独下调 `*_min` 即可**，
+不必动构建版本。每个 `*_min` 都同时登记为 `processResources` 的 `inputs.property`，
+否则改了 gradle.properties 而增量构建没重跑，元数据里的版本范围会悄悄停留在旧值。
+
+### 构建工具版本（`gradle/libs.versions.toml`）—— 与 `neo_version` 强耦合
+
+| 项 | 值 | 说明 |
+| --- | --- | --- |
+| `moddevgradle` | **`2.0.147`** | 官方 26.2 示例模板规定的版本 |
+| `forgegradle` | `[7.0.21,8.0)` | 区间依赖，换时间构建可能拿到不同版本 |
+| `shadow` | `8.3.8` | 固定 |
+| `loom` | `1.17-SNAPSHOT` | 浮动 |
+
+**升级 `neo_version` 时必须同步检查 MDG 版本**，否则会出现极难定位的失败：
+NeoForge 0.88 **构件内**的 `ats/accesstransformer.cfg`（在 userdev jar 里，不在本仓库）
+新增了 `public net.minecraft.core.HolderSet$Named contents()` 和 `public net.minecraft.core.HolderSet$1 contents()`
+两条 AT。MDG 的 JST 把 AT 应用到**源码**时，`HolderSet$1` 是匿名类、源码里没有同名声明，
+于是只有 `Named` 被改成 `public`，匿名子类仍是 `protected` → `recompile` 阶段报
+`contents() 无法覆盖 ... 尝试使用更弱的访问级别`，**7055 个源文件编译直接失败**。
+MDG 2.0.144 + JST 2.0.10 会踩这个坑，2.0.147（JST 2.0.11）不会。
 
 产物命名：`historycli-<加载器>-<版本>.jar`。每个 shadow 模块**只产出这一个 jar**——
 普通 `jar` 任务被禁用（它与 `shadowJar` 默认文件名相同、会互相覆盖，可能发布出缺少 `common` 的空壳 jar），
@@ -295,4 +327,5 @@ gson 在 Paper/Velocity/BungeeCord 运行时均由平台提供，brigadier 只�
 - 代码包名统一 `org.anjisuan608.historycli`；平台 ID `lichenhistorycli`；显示名 "Lichen History CLI"（不支持空格的平台用驼峰 `LichenHistoryCli`）。
 - 语言文件统一在根 `lang/`，由各模块 `processResources` 打进相应位置
   （mod 端 → `assets/lichenhistorycli/lang/`，插件端 → jar 根）。
-- `temp/`、`tmp/`、`eps/` 为本地参考代码与临时产物，已在 `.gitignore` 中忽略，不要提交。
+- 本地临时产物一律走 `.gitignore`，**不要**把它们的路径写进本文档——其他协作者克隆下来没有这些目录，
+  文档里出现只会误导读代码的模型/人。
