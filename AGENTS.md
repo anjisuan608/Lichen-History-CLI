@@ -21,7 +21,7 @@
 | Fabric / Quilt | **单一 jar** |
 | NeoForge | **单一 jar**（26.2+） |
 | Forge | **单一 jar**（26.2+） |
-| Bukkit 系（Spigot/Paper/Purpur/Leaves/Leaf） | 单一插件 jar（Folia 兼容） |
+| Bukkit 系（Spigot/Paper/Purpur/Leaves/Leaf） | 单一插件 jar（Folia 兼容，**MC 26.1.x ~ 26.3**） |
 | Velocity / BungeeCord(Waterfall) | 单一代理 jar |
 
 **没有"客户端版 / 服务端版"两种构建**——每个加载器只产出一个 jar，
@@ -41,6 +41,9 @@
 
 > 依赖声明的 Minecraft 范围是 `[26.2,27)`（见 `gradle.properties` 的 `minecraft_version_range` 与各 `mods.toml` / `fabric.mod.json`）。
 > 此前 AGENTS.md 声称"26.1~26.2 单 jar 通用"，但**只按 26.2 编译与测试过**，且 mods.toml 里根本没有依赖声明，故已统一为 26.2+。
+>
+> **只有 Bukkit 系覆盖到 26.1**：插件没有 mod 那样的版本依赖声明，靠 `plugin.yml` 的 `api-version`
+> 与"按最低版本编译"来保证，见 §2 的 Bukkit/Paper 版本兼容。
 
 ---
 
@@ -98,6 +101,7 @@ gson 在 Paper/Velocity/BungeeCord 运行时均由平台提供，brigadier 只�
 | `forgegradle` | `[7.0.21,8.0)` | 区间依赖，换时间构建可能拿到不同版本 |
 | `shadow` | `8.3.8` | 固定 |
 | `loom` | `1.17-SNAPSHOT` | 浮动 |
+| `paperApi` | `26.1.2.build.74-stable` | **故意取最低支持版本**，见下方 Bukkit 小节 |
 
 **升级 `neo_version` 时必须同步检查 MDG 版本**，否则会出现极难定位的失败：
 NeoForge 0.88 **构件内**的 `ats/accesstransformer.cfg`（在 userdev jar 里，不在本仓库）
@@ -106,6 +110,25 @@ NeoForge 0.88 **构件内**的 `ats/accesstransformer.cfg`（在 userdev jar 里
 于是只有 `Named` 被改成 `public`，匿名子类仍是 `protected` → `recompile` 阶段报
 `contents() 无法覆盖 ... 尝试使用更弱的访问级别`，**7055 个源文件编译直接失败**。
 MDG 2.0.144 + JST 2.0.10 会踩这个坑，2.0.147（JST 2.0.11）不会。
+
+### Bukkit/Paper 版本兼容 —— 26.1.x ~ 26.3
+
+插件没有 mod 那样的依赖声明，"能装上"完全由两件事保证：
+
+1. **编译目标 = 最低支持版本**：`paperApi = 26.1.2.build.74-stable`，而不是最新的 26.2/26.3。
+   这样编译器会当场拦住"误用了 26.2 才有的 API"，从而天然保证 26.1.x 上可加载。
+   本插件的 API 面极小且都是老 API——`Bukkit`、`EventHandler`、`EventPriority`、
+   `PlayerCommandPreprocessEvent`、`ServerCommandEvent`、`JavaPlugin`，26.1→26.3 无变动。
+2. **`plugin.yml` 的 `api-version: '26.1'`（取最低支持版本的 major.minor）**：
+   写成 `26.2` 会让 26.1.x 服务器认为插件需要更新的 API。
+   - Paper 的 `PluginMeta#getAPIVersion` javadoc 明确补丁版本会被归并（`26.1.2` → `26.1`）；
+   - 各版本 paper-api jar 内的 `apiVersioning.json` 佐证这一格式：
+     `26.1.2.build.74` → `26.1.2`、`26.2.build.119` → `26.2`、`26.3-pre-2` → `26.3`；
+   - 此前写的 `1.21` 是错值，但**Paper 从不因 api-version 拒载**（`CraftServer` 里没有校验，
+     `UnsafeValues#isSupportedApiVersion` 只被 `isLegacyPlugin()` 用来判定 pre-1.13 遗留插件，
+     LuckPerms 至今仍写 `1.13`），所以这个错误一直是隐性的。
+
+Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 `options.release = 25`。
 
 产物命名：`historycli-<加载器>-<版本>.jar`。每个 shadow 模块**只产出这一个 jar**——
 普通 `jar` 任务被禁用（它与 `shadowJar` 默认文件名相同、会互相覆盖，可能发布出缺少 `common` 的空壳 jar），
@@ -119,7 +142,7 @@ MDG 2.0.144 + JST 2.0.10 会踩这个坑，2.0.147（JST 2.0.11）不会。
 | --- | --- | --- |
 | common | 21 | 会被 shade 进下面两个插件，必须跟着降级 |
 | velocity / bungee | 21 | Velocity 3.x 要求 Java 21、BungeeCord 约 17/21；用 25 编译会在真实代理上 `UnsupportedClassVersionError` |
-| fabric / neoforge / forge / bukkit | 25 | 它们要读 Minecraft 26.2 / Paper 26.2 的 class major 69 类文件 |
+| fabric / neoforge / forge / bukkit | 25 | 它们要读 Minecraft 26.2 / Paper 26.x 的 class major 69 类文件 |
 
 验证方式：解压产物看 class 文件头的 major 版本（65=Java 21，69=Java 25）。
 

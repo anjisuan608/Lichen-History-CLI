@@ -3,7 +3,7 @@ loom = "1.17-SNAPSHOT"
 shadow = "8.3.8"
 moddevgradle = "2.0.147"
 forgegradle = "[7.0.21,8.0)"
-paperApi = "26.2.build.119-stable"
+paperApi = "26.1.2.build.74-stable"
 velocityApi = "3.3.0-SNAPSHOT"
 bungeeApi = "1.21-R0.4"
 

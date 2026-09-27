@@ -7,7 +7,7 @@ base {
 }
 
 tasks.withType(JavaCompile).configureEach {
-    // Paper 26.2 API 的类文件是 Java 25（major 69），必须用 25 编译
+    // Paper 26.x API 的类文件是 Java 25（major 69），必须用 25 编译
     options.release = 25
 }
 

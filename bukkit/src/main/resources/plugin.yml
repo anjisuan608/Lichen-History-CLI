@@ -1,7 +1,10 @@
 name: LichenHistoryCli
 version: '${version}'
 main: org.anjisuan608.historycli.bukkit.BukkitHistoryPlugin
-api-version: '1.21'
+# 必须 <= 实际支持的最低 Paper 版本：本插件声明支持 26.1.x ~ 26.3，故取 26.1。
+# 格式为 major.minor（Paper 的 PluginMeta 会把 26.1.2 这类补丁版本归并成 26.1）；
+# 写成比最低支持版本更大的值（如 26.2）会让 26.1.x 服务器认为插件需要更新的 API。
+api-version: '26.1'
 authors:
   - anjisuan608
 folia-supported: true
