@@ -74,8 +74,8 @@ gson 在 Paper/Velocity/BungeeCord 运行时均由平台提供，brigadier 只�
 
 `build.gradle` 的 `resolveVersion()`：
 - 本地构建 → `26-SNAPSHOT`
-- GitHub Actions push → `26-dev.<sha 前 7 位>`
-- GitHub Actions pull_request → `26-pr.<sha 前 7 位>`（与 push 区分）
+- GitHub Actions push → `26-dev-<sha 前 7 位>`（分隔符是 `-` 不是 `.`）
+- GitHub Actions pull_request → `26-pr-<sha 前 7 位>`（与 push 区分，分隔符同样是 `-`）
 - tag 发版 → `26-<标签名去前导 v>`
 
 ### 构建版本 vs 最低版本（`gradle.properties`）
@@ -276,7 +276,8 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
 .\gradlew.ps1 :common:test   # 单测
 ```
 
-- 需要 JDK 25 + Gradle（wrapper 9.6.1，已加 `distributionSha256Sum` 校验）。
+- 需要 JDK 25 + Gradle（wrapper **9.8.0**，已加 `distributionSha256Sum` 校验；
+  `networkTimeout=60000` + `retries=3`，避免大发行版在慢链路上 10 秒读超时直接失败）。
 - 运行目录：客户端 `run/Client`，服务端 `run/Server`（Fabric/NeoForge）。
 - `common` 单测 **56 个、0 失败**，覆盖：
   - `HistoryStore`：落盘 / `dirtyCount`（`-r` 不丢未落盘行、`delete`/`trim` 后的不变量）、

@@ -16,11 +16,13 @@ def resolveVersion = {
         String tag = gitRef.substring('refs/tags/'.length())
         dynamic = tag.replaceFirst(/^v/, '')
     } else if ('pull_request'.equals(gitEvent)) {
-        // PR 构建与 push 构建要能区分开（两者都有 GITHUB_SHA）
-        dynamic = 'pr.' + (gitSha ?: 'unknown').take(7)
+        // PR 构建与 push 构建要能区分开（两者都有 GITHUB_SHA）；分隔符同 dev，统一用 -
+        dynamic = 'pr-' + (gitSha ?: 'unknown').take(7)
     } else if (gitSha != null && !gitSha.isEmpty()) {
         // GitHub Actions 构建：提交哈希前 7 位作为 semver pre-release
-        dynamic = 'dev.' + gitSha.take(7)
+        // 分隔符用 - 而不是 .（26-dev-abc1234）：带点时产物名
+        // historycli-fabric-26-dev.abc1234.jar 容易被工具/人误认成扩展名
+        dynamic = 'dev-' + gitSha.take(7)
     } else {
         // 本地构建：合法 semver 的 SNAPSHOT
         dynamic = 'SNAPSHOT'
