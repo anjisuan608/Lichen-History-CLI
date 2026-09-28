@@ -1,0 +1,30 @@
+{
+  "loader": {
+    "name": "java_plain",
+    "version": "1.0"
+  },
+  "license": "LGPL-3.0-or-later",
+  "plugins": [
+    {
+      "id": "lichenhistorycli",
+      "name": "LichenHistoryCli",
+      "version": "${pluginVersion}",
+      "entrypoint": "org.anjisuan608.historycli.sponge.SpongeHistoryPlugin",
+      "description": "Bash-like history command management for Minecraft.",
+      "links": {
+        "homepage": "https://github.com/anjisuan608/Lichen-History-CLI"
+      },
+      "contributors": [
+        {
+          "name": "anjisuan608"
+        }
+      ],
+      "dependencies": [
+        {
+          "id": "spongeapi",
+          "version": "12.0.0"
+        }
+      ]
+    }
+  ]
+}

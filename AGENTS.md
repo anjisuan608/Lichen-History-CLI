@@ -23,6 +23,7 @@
 | Forge | **单一 jar**（26.2+） |
 | Bukkit 系 **bukkit 版**（CraftBukkit / Spigot，也能跑在 Paper 系上） | 单一插件 jar，**MC 26.1.x ~ 26.3** |
 | Paper 系 **paper 版**（Paper / Purpur / Leaves / Leaf + Folia） | 单一插件 jar，**MC 26.1.x ~ 26.3** |
+| Sponge **sponge 版**（SpongeVanilla / SpongeForge） | 单一插件 jar，**Sponge API ≥ 12（MC 1.21.x ~ 1.21.10，Sponge 尚无 26.x 平台）** |
 | Velocity / BungeeCord(Waterfall) | 单一代理 jar |
 
 **没有"客户端版 / 服务端版"两种构建**——每个加载器只产出一个 jar，
@@ -68,6 +69,8 @@ bukkit/                      # 服务端命令 + ServerCommandEvent + PlayerComm
 paper/                       # **复用 bukkit 的源码**（sourceSets 指过去，不复制第二份）
                              #   + Paper/Folia 专属：paper-plugin.yml 原生加载、Brigadier 命令、
                              #     Adventure 可点击列表行、AsyncScheduler 每分钟异步落盘
+sponge/                      # Sponge 适配：sponge_plugins.json（java_plain loader）、
+                             #   Command.Raw 命令、ExecuteCommandEvent.Pre 录制、异步落盘
 velocity/  bungee/           # 代理端命令 + 命令事件自记录
 ```
 
@@ -140,13 +143,14 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
 
 ### 字节码级别（分层）
 
-`common` 与 `velocity`/`bungee` 用 `--release 21`，`fabric`/`neoforge`/`forge`/`bukkit` 用 `--release 25`：
+`common` 与 `velocity`/`bungee`/`sponge` 用 `--release 21`，`fabric`/`neoforge`/`forge`/`bukkit`/`paper` 用 `--release 25`：
 
 | 模块 | release | 原因 |
 | --- | --- | --- |
-| common | 21 | 会被 shade 进下面两个插件，必须跟着降级 |
+| common | 21 | 会被 shade 进插件与代理，必须跟着降级 |
 | velocity / bungee | 21 | Velocity 3.x 要求 Java 21、BungeeCord 约 17/21；用 25 编译会在真实代理上 `UnsupportedClassVersionError` |
-| fabric / neoforge / forge / bukkit | 25 | 它们要读 Minecraft 26.2 / Paper 26.x 的 class major 69 类文件 |
+| sponge | 21 | Sponge 平台（1.21.x）跑在 Java 21 上，同理不能用 25 |
+| fabric / neoforge / forge / bukkit / paper | 25 | 它们要读 Minecraft 26.2 / Paper 26.x 的 class major 69 类文件 |
 
 验证方式：解压产物看 class 文件头的 major 版本（65=Java 21，69=Java 25）。
 
@@ -161,6 +165,7 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
 | 客户端 / 专用服务器（Fabric/NeoForge/Forge） | `<游戏目录>/local/historycli/command_history.log` |
 | 集成服务器（单人/局域网，`enable_integrated_history=true`） | `<存档>/data/lichenhistorycli/command_history.log` |
 | Bukkit | `<服务器目录>/local/historycli/command_history.log` |
+| Sponge | `<服务器目录>/local/historycli/command_history.log`（与 Bukkit 同一路径） |
 | Velocity | `plugins/lichenhistorycli/command_history.log`（插件 id） |
 | BungeeCord | `plugins/LichenHistoryCli/command_history.log`（插件名） |
 
@@ -176,6 +181,7 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
 | Fabric | `config/lichen-history-cli.json` |
 | NeoForge / Forge | `config/lichen-history-cli.toml` |
 | Bukkit / BungeeCord | `config.yml` |
+| Sponge | `config/lichenhistorycli/lichen-history-cli.json`（与 Fabric 同一套 `HistoryCliConfigIO` 结构，取 `server` 分节；根级 `language` 可选，默认 `en_us`） |
 | Velocity | `plugins/lichenhistorycli/config.properties` |
 
 字段：
@@ -281,7 +287,7 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
 ## 5. 构建与测试
 
 ```powershell
-.\gradlew.ps1 build          # 全 8 模块
+.\gradlew.ps1 build          # 全 9 模块
 .\gradlew.ps1 :common:test   # 单测
 ```
 
@@ -360,6 +366,17 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
       > 曾导致 Spigot 上 `NoClassDefFoundError: LifecycleEventType`，连提示都来不及打印。
       > 结论：`PaperHistoryPlugin` 字节码里**一个 Paper 类型都不能有**，
       > 全部委托给只有确认是 Paper 之后才会被调用的 `PaperSupport`（已用逐字节扫描验证）。
+    - ⬜ **sponge 版 jar 未运行时实测**：Sponge **没有 26.x 平台**（最新为 SpongeForge `1.21.10` + API 17.0.1、
+      SpongeVanilla `1.21.1` + API 12.0.4），且本机**拿不到可运行的 Sponge 服务端**
+      （GitHub 发行版停在 `v7.4.7`/MC 1.12.2、官网是 SPA 无下载接口、Jenkins API 不通、
+      maven 上只有构建构件而非发行包）。当前只能做到**编译验证 + 逐签名核对官方 javadoc**：
+      `Command.complete()` 明确「补全被选中时**替换最后一个词**」、`ExecuteCommandEvent.command()`
+      **只含命令名**（完整行要与 `arguments()` 拼）、`RegisterCommandEvent.register` 首参即主命令名——
+      这些语义都已按 javadoc 实现，编译器也验证了全部 API 签名（含 `Command.Raw` 的 6 个抽象方法在
+      API 12 与 17 上完全一致，故编译到 12 可同时兼容两代）。**未验证面**：控制台是否触发
+      `ExecuteCommandEvent`、`RegisterCommandEvent<Command>` 的泛型匹配是否会收到 Sponge 实际抛出的事件、
+      `CommandManager.process()` 的斜杠约定、`Sponge.asyncScheduler()` 定时任务是否按期执行。
+      注意 **Sponge 无 op API**（op 属权限体系），故非玩家发送者一律放行、玩家按节点判定。
     - ✅ **控制台录制路径已实测**（stdin 注入，Paper 26.1.2 + bukkit jar）：
       4 条控制台命令全部入史并落盘到 `command_history.log`，`Command exception` 0 条
       → `ServerCommandEvent` 录制链路端到端成立。
