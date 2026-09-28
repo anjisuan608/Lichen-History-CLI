@@ -23,7 +23,7 @@
 | Forge | **单一 jar**（26.2+） |
 | Bukkit 系 **bukkit 版**（CraftBukkit / Spigot，也能跑在 Paper 系上） | 单一插件 jar，**MC 26.1.x ~ 26.3** |
 | Paper 系 **paper 版**（Paper / Purpur / Leaves / Leaf + Folia） | 单一插件 jar，**MC 26.1.x ~ 26.3** |
-| Sponge **sponge 版**（SpongeVanilla / SpongeForge） | 单一插件 jar，**Sponge API ≥ 12（MC 1.21.x ~ 1.21.10，Sponge 尚无 26.x 平台）** |
+| Sponge **sponge 版**（SpongeVanilla / SpongeForge） | 单一插件 jar，**Sponge API ≥ 12（MC 1.21.1 ~ 26.3；26.x 为 RC/实验性）** |
 | Velocity / BungeeCord(Waterfall) | 单一代理 jar |
 
 **没有"客户端版 / 服务端版"两种构建**——每个加载器只产出一个 jar，
@@ -366,17 +366,39 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
       > 曾导致 Spigot 上 `NoClassDefFoundError: LifecycleEventType`，连提示都来不及打印。
       > 结论：`PaperHistoryPlugin` 字节码里**一个 Paper 类型都不能有**，
       > 全部委托给只有确认是 Paper 之后才会被调用的 `PaperSupport`（已用逐字节扫描验证）。
-    - ⬜ **sponge 版 jar 未运行时实测**：Sponge **没有 26.x 平台**（最新为 SpongeForge `1.21.10` + API 17.0.1、
-      SpongeVanilla `1.21.1` + API 12.0.4），且本机**拿不到可运行的 Sponge 服务端**
-      （GitHub 发行版停在 `v7.4.7`/MC 1.12.2、官网是 SPA 无下载接口、Jenkins API 不通、
-      maven 上只有构建构件而非发行包）。当前只能做到**编译验证 + 逐签名核对官方 javadoc**：
-      `Command.complete()` 明确「补全被选中时**替换最后一个词**」、`ExecuteCommandEvent.command()`
-      **只含命令名**（完整行要与 `arguments()` 拼）、`RegisterCommandEvent.register` 首参即主命令名——
-      这些语义都已按 javadoc 实现，编译器也验证了全部 API 签名（含 `Command.Raw` 的 6 个抽象方法在
-      API 12 与 17 上完全一致，故编译到 12 可同时兼容两代）。**未验证面**：控制台是否触发
-      `ExecuteCommandEvent`、`RegisterCommandEvent<Command>` 的泛型匹配是否会收到 Sponge 实际抛出的事件、
-      `CommandManager.process()` 的斜杠约定、`Sponge.asyncScheduler()` 定时任务是否按期执行。
-      注意 **Sponge 无 op API**（op 属权限体系），故非玩家发送者一律放行、玩家按节点判定。
+    - ✅ **sponge 版 jar 已在 SpongeVanilla 26.3（Sponge API 21）真机实测通过**（2026-09-28）：
+      `spongevanilla-…-universal.jar` 的 Main-Class 就是 `InstallerMain`——**直接运行即可装出服务端**
+      （`libraries/` 95 个文件、`Done (3.131s)`）；把 jar 放进 `mods/` 后：
+      `Loaded plugin(s): [spongevanilla, sponge, spongeapi, minecraft, lichenhistorycli]`
+      → `onConstruct` → `Lichen History CLI (Sponge) enabled, language=en_us` → `onShutdown`；
+      主命令与全部别名（`historyclis`/`historycliser`/`historys`/`historyser`）经 RCON 实测可执行，
+      列表输出 `1..N` 逐条对应；**录制链路成立**——7 条控制台/RCON 命令全部入史到
+      `local/historycli/command_history.log` 并在停服时落盘。
+      这一次覆盖了原先标注的三个"未验证"项：**API 21 上能链接并加载**、
+      **`"spongeapi": "12.0.0"` 按下限（而非精确）解释**、**控制台/RCON 会触发 `ExecuteCommandEvent`**。
+      > 踩坑：Sponge 会**为每种命令类型各发一次** `RegisterCommandEvent`（事件泛型即该次的命令类型）。
+      > 监听器若声明成父类型 `RegisterCommandEvent<Command>`，会连 Parameterized 那次一起收到，
+      > 平台内部强转 → `ClassCastException: RawHistoryCommand cannot be cast to Command$Parameterized`。
+      > **必须收窄为 `RegisterCommandEvent<Command.Raw>`**（实测踩到，已修）。
+      > 另注：`plugins` 经 RCON 回 "Unknown or incomplete command"，**不带插件的基线同样如此**
+      > → 属 Sponge 的 RCON 主体权限/命令可见性，与本插件无关；
+      > 尚未触发的是 `!` 展开经 `CommandManager.process()` 的分发（测试命令里没有 `!!`）。
+    - ✅ **Sponge 平台事实与 API 兼容性已核对**（2026-09-28，取自 `repo.spongepowered.org` 全量 metadata）：
+      **SpongeVanilla 提供 26.x**——`26.1`/`26.1.1`/`26.1.2`（Sponge API **19**）、`26.2`（API **20**）、
+      `26.3`（API **21**，最新 `26.3-21.0.0-RC2721`），另有 `1.21.11`（API 18）、`1.21.10`（API 17）等；
+      **26.x 均为 RC/实验性**。Sponge API **稳定版止于 17.0.0**，18/19/20 只有 `-SNAPSHOT`，**21 尚无任何构件**
+      → 26.3 的 API 无法核验。**已逐签名比对 12 / 17 / 19 / 20**：本项目用到的全部 API 元素
+      （`Command` 的 6 个抽象方法、`Command.Raw`、`ExecuteCommandEvent.Pre`、`RegisterCommandEvent.register`、
+      `ArgumentReader.input/cursor/remaining`、`CommandCause.first/subject/audience`、
+      `Sponge.asyncScheduler/configManager/server`、`Task.Builder`、`CommandCompletion.of`、
+      `CommandManager.process`、`ConfigRoot.directory`、`Scheduler.submit`、`ScheduledTask.cancel`）
+      **四版完全一致** → 编译目标取 12（最低支持版本），**一个 jar 实测覆盖到 26.3**；
+      `Command.Raw.commandTree()` 在 12→19 由无参变为 `commandTree(RegistryHolder)`，
+      但它是 `default` 且我们不覆盖，故无影响（API 21 无构件可 diff，改由 26.3 真机实测直接背书）。
+    - **Sponge 无 op API**（op 属权限体系）：非玩家发送者（控制台/命令方块）一律放行，玩家按节点判定。
+    - ⚠️ **踩坑记录（网络）**：安装 SpongeVanilla 26.3 时发现——本机 `JAVA_TOOL_OPTIONS` 里的
+      `-Djava.net.preferIPv4Stack=true` **会让 `launchermeta.mojang.com` 的 TLS 握手被重置**（默认反而 200），
+      即"强制 IPv4 对部分主机是毒药"；**该开关不可全局常开**，只在特定主机需要时按次注入。
     - ✅ **控制台录制路径已实测**（stdin 注入，Paper 26.1.2 + bukkit jar）：
       4 条控制台命令全部入史并落盘到 `command_history.log`，`Command exception` 0 条
       → `ServerCommandEvent` 录制链路端到端成立。
