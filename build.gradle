@@ -34,6 +34,8 @@ def resolveVersion = {
 ext {
     fullVersion = resolveVersion()
     minecraftVersion = providers.gradleProperty('minecraft_version').get()
+    // Fabric 单独的编译目标（最低支持版本），见 gradle.properties 注释
+    minecraftVersionFabric = providers.gradleProperty('minecraft_version_fabric').get()
     modId = providers.gradleProperty('mod_id').get()
     modName = providers.gradleProperty('mod_name').get()
 }

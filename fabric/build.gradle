@@ -13,6 +13,10 @@ tasks.withType(JavaCompile).configureEach {
 
 loom {
     splitEnvironmentSourceSets()
+    // 注意：不要加 loom.mixin { } 块——Loom 1.17 已默认关闭 Mixin AP，配了只会报弃用提示
+    //（"The mixin annotation is no longer enabled by default..."）。也**不需要** refmap：
+    // 生产环境（intermediary）实测由 Fabric Loader 的 Mixin 0.17.x 运行时重映射，
+    // 三个 *.mixins.json 里也不写 "refmap" 键，否则会刷 Reference map could not be read 的警告。
     mods {
         "${rootProject.ext.modId}" {
             sourceSet sourceSets.main
@@ -41,7 +45,9 @@ configurations {
 loom.nestJars(tasks.named("jar"), configurations.jarInJar)
 
 dependencies {
-    minecraft "com.mojang:minecraft:${rootProject.ext.minecraftVersion}"
+    // 用 Fabric 的最低支持版本编译（26.1.2），而非全局的 minecraft_version（26.2，
+    // 那个同时被 forge 用作构件坐标）。见 gradle.properties 里 minecraft_version_fabric 的注释。
+    minecraft "com.mojang:minecraft:${rootProject.ext.minecraftVersionFabric}"
     implementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}"
 
@@ -61,7 +67,6 @@ processResources {
     filesMatching('fabric.mod.json') {
         expand 'version': version, 'mod_id': rootProject.ext.modId, 'mod_name': rootProject.ext.modName,
                 'mod_license': rootProject.mod_license, 'mod_authors': rootProject.mod_authors,
-                'mod_credits': rootProject.mod_credits,
                 'fabric_loader_version_min': rootProject.fabric_loader_version_min,
                 'minecraft_version_range': rootProject.minecraft_version_range_fabric
     }

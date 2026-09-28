@@ -12,7 +12,6 @@
       }
     }
   ],
-  "credits": "${mod_credits}",
   "license": "${mod_license}",
   "icon": "assets/lichenhistorycli/icon.png",
   "environment": "*",

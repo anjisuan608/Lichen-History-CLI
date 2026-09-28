@@ -91,7 +91,8 @@ gson 在 Paper/Velocity/BungeeCord 运行时均由平台提供，brigadier 只�
 
 | 构建版本（编译/dev 用） | 最低版本（写进元数据，低于它拒载） |
 | --- | --- |
-| `minecraft_version=26.2` | `minecraft_version_range=[26.2,27)`（Fabric 用 `minecraft_version_range_fabric=>=26.2 <27`，语法不同） |
+| `minecraft_version=26.2`（**被 forge 用作构件坐标，不能动**） | `minecraft_version_range=[26.2,27)`（mod 平台元数据） |
+| **`minecraft_version_fabric=26.1.2`**（Fabric 单独的编译目标） | `minecraft_version_range_fabric=>=26.1 <27`（Fabric 语法是 `>=X <Y`，见下方 Fabric 小节） |
 | `neo_version=26.2.0.69` | `neo_version_min=26.2.0.69` → `neoforge.mods.toml` 的 `versionRange` |
 | `forge_version=65.1.3` | `forge_version_min=65.1.3` → `mods.toml` 的 `versionRange` |
 | `fabric_loader_version=0.19.3` | `fabric_loader_version_min=0.19.3` → `fabric.mod.json` 的 `depends.fabricloader` |
@@ -136,6 +137,29 @@ MDG 2.0.144 + JST 2.0.10 会踩这个坑，2.0.147（JST 2.0.11）不会。
      LuckPerms 至今仍写 `1.13`），所以这个错误一直是隐性的。
 
 Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 `options.release = 25`。
+
+### Fabric/Quilt 版本兼容 —— 26.1 ~ 26.3
+
+1. **编译目标与声明范围分开**：`minecraft_version=26.2` 同时被 forge 用作构件坐标
+   （`net.minecraftforge:forge:26.2-65.1.3`），**改全局属性会弄坏 forge**，因此 Fabric 单开
+   `minecraft_version_fabric=26.1.2`（root `ext.minecraftVersionFabric` → loom 的 `minecraft` 依赖），
+   声明范围 `minecraft_version_range_fabric=>=26.1 <27`，`fabric_api_version` 同步降到 `0.155.3+26.1.2`。
+   > **fabric-api 是按 MC 版本发布的**：拿 `+26.1.2` 的 fabric-api 跑 26.2 服务端会被 Loader 判为
+   > `Incompatible mods found` 直接拒启（实测踩过），给 26.2/26.3 测试装服时必须换对应版本。
+2. **按最低版本编译立刻抓到真 bug**：原客户端 mixin 用 `mc.gui.hud`（**26.2 才有**），
+   而 `Gui.getChat()`（≤26.1）与 `Gui.hud`（26.2+）两版互斥 → 在 26.1 上**根本编译不过**。
+   改用 `LocalPlayer#sendSystemMessage(Component)`（26.1.2 与 26.2 都存在；javap 确认两者
+   内部分别走 `getChatListener()` 与 `gui.chatListener()`，行为由 Mojang 保证）。
+3. **mixin 不需要 refmap**：Loom 1.17 **默认关闭 Mixin AP**，加 `loom.mixin { }` 反而报
+   `The mixin annotation is no longer enabled by default...` 弃用提示；生产（intermediary）
+   由 Fabric Loader 的 **Mixin 0.17.x 运行时重映射**。因此 `*.mixins.json` 里**不要**写 `"refmap"` 键
+   （写了会刷 `Reference map ... could not be read` 警告）。已在**生产服务端**实测 mixin 全部应用成功。
+4. **mixin 目标逐版核对**（named jar javap）：`DedicatedServer.handleConsoleInput`、
+   `ServerGamePacketListenerImpl.handleChatCommand/handleSignedChatCommand`、
+   `ClientPacketListener.sendChat/sendCommand` 在 **26.1.2 与 26.2 全部存在**。
+5. **`fabric.mod.json` 没有 `credits` 根字段**（Fabric Loader 报 `Unsupported root entry "credits"`）→ 已删除，
+   致谢由 README/AGENTS 承载；`fabric/build.gradle` 的 expand 里也不再传 `mod_credits`。
+6. **Quilt** 直接吃 Fabric 那份 jar（Quilt 兼容 Fabric 模组），无独立产物。
 
 产物命名：`historycli-<加载器>-<版本>.jar`。每个 shadow 模块**只产出这一个 jar**——
 普通 `jar` 任务被禁用（它与 `shadowJar` 默认文件名相同、会互相覆盖，可能发布出缺少 `common` 的空壳 jar），

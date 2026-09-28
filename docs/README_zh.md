@@ -23,7 +23,7 @@ Lichen History CLI 把熟悉的 **bash `history` 命令** 带进 Minecraft —�
 
 | 平台 | 产物 | Minecraft | 说明 |
 | --- | --- | --- | --- |
-| Fabric / Quilt | `historycli-fabric-*.jar` | 26.2+ | 模组 —— 客户端与专用服务器 |
+| Fabric / Quilt | `historycli-fabric-*.jar` | 26.1 ~ 26.3 | 模组 —— 客户端与专用服务器 |
 | NeoForge | `historycli-neoforge-*.jar` | 26.2+ | 模组 —— 客户端与专用服务器 |
 | Forge | `historycli-forge-*.jar` | 26.2+ | 模组 —— 客户端与专用服务器 |
 | CraftBukkit / Spigot（也能跑在 Paper 上） | `historycli-bukkit-*.jar` | 26.1.x ~ 26.3 | 普通 Bukkit 插件（`plugin.yml`） |

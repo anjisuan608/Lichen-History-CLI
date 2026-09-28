@@ -79,9 +79,13 @@ public abstract class ClientPacketListenerMixin {
             return false;
         }
         // 无匹配，或匹配到历史中字面量 `!!` 行（继续展开会无限递归）
+        // 用 LocalPlayer#sendSystemMessage，不用 Gui：`Gui.getChat()`（≤26.1）与 `Gui.hud`（26.2+）
+        // 两版互斥，引用任一个都会在另一版编译失败 / 运行期 NoSuchFieldError。
+        // sendSystemMessage 在 26.1.2 与 26.2 都存在，且内部各自走正确的门面
+        // （前者 getChatListener()、后者 gui.chatListener()），由 Mojang 保证行为一致。
         Minecraft mc = Minecraft.getInstance();
-        if (mc.gui != null && mc.gui.hud != null) {
-            mc.gui.hud.getChat().addClientSystemMessage(
+        if (mc.player != null) {
+            mc.player.sendSystemMessage(
                     Component.translatable(HistoryCommandHandler.Keys.NO_MATCH, raw));
         }
         ci.cancel();

@@ -23,7 +23,7 @@ Lichen History CLI brings the familiar **bash `history` command** to Minecraft �
 
 | Platform | Artifact | Minecraft | What it is |
 | --- | --- | --- | --- |
-| Fabric / Quilt | `historycli-fabric-*.jar` | 26.2+ | mod — client and dedicated server |
+| Fabric / Quilt | `historycli-fabric-*.jar` | 26.1 ~ 26.3 | mod — client and dedicated server |
 | NeoForge | `historycli-neoforge-*.jar` | 26.2+ | mod — client and dedicated server |
 | Forge | `historycli-forge-*.jar` | 26.2+ | mod — client and dedicated server |
 | CraftBukkit / Spigot (also runs on Paper) | `historycli-bukkit-*.jar` | 26.1.x ~ 26.3 | plain Bukkit plugin (`plugin.yml`) |
