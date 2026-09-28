@@ -1,0 +1,58 @@
+plugins {
+    alias(libs.plugins.shadow)
+}
+
+base {
+    archivesName = 'historycli-paper'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    // Paper 26.x API 的类文件是 Java 25（major 69），必须用 25 编译
+    options.release = 25
+}
+
+// 复用 bukkit 适配层的源码，而不是复制第二份：
+// 两个模块编译同一份 Bukkit 适配代码，paper 端额外提供 Paper/Folia 专属能力
+// （Adventure 可点击消息、异步定时落盘）。这样修一次，两个 jar 同步生效。
+sourceSets.main.java.srcDir rootProject.file('bukkit/src/main/java')
+
+configurations {
+    shade
+    implementation.extendsFrom shade
+}
+
+repositories {
+    maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+}
+
+dependencies {
+    // 取最低支持版本（26.1.x），保证 26.1~26.3 都能加载
+    compileOnly 'io.papermc.paper:paper-api:' + libs.versions.paperApi.get()
+    shade project(':common')
+}
+
+processResources {
+    def version = project.version
+    inputs.property 'version', version
+    filesMatching(['plugin.yml', 'paper-plugin.yml']) {
+        expand 'version': version
+    }
+    from(rootProject.file('lang'))
+    from(rootProject.file('LICENSE'))
+}
+
+// 每个模块只产出 shadowJar 一个产物：普通 jar 与 shadowJar 默认文件名相同、会互相覆盖，
+// 谁后执行谁赢，可能得到缺少 common 的空壳 jar，因此直接禁用普通 jar。
+jar {
+    enabled = false
+}
+
+shadowJar {
+    configurations = [project.configurations.shade]
+    archiveClassifier = ''
+    dependencies {
+        include(dependency('org.anjisuan608.historycli:.*'))
+    }
+}
+
+build.dependsOn shadowJar

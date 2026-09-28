@@ -21,7 +21,8 @@
 | Fabric / Quilt | **单一 jar** |
 | NeoForge | **单一 jar**（26.2+） |
 | Forge | **单一 jar**（26.2+） |
-| Bukkit 系（Spigot/Paper/Purpur/Leaves/Leaf） | 单一插件 jar（Folia 兼容，**MC 26.1.x ~ 26.3**） |
+| Bukkit 系 **bukkit 版**（CraftBukkit / Spigot，也能跑在 Paper 系上） | 单一插件 jar，**MC 26.1.x ~ 26.3** |
+| Paper 系 **paper 版**（Paper / Purpur / Leaves / Leaf + Folia） | 单一插件 jar，**MC 26.1.x ~ 26.3** |
 | Velocity / BungeeCord(Waterfall) | 单一代理 jar |
 
 **没有"客户端版 / 服务端版"两种构建**——每个加载器只产出一个 jar，
@@ -50,7 +51,7 @@
 ## 2. 构建结构（单仓库多模块，架构参考开源项目 LuckPerms）
 
 ```
-settings.gradle              # include :common :fabric :neoforge :forge :bukkit :velocity :bungee
+settings.gradle              # include :common :fabric :neoforge :forge :bukkit :paper :velocity :bungee
 build.gradle                 # 版本三态逻辑 + subprojects 统一（group 取自 mod_group_id）
 gradle/libs.versions.toml    # 版本目录
 common/
@@ -64,6 +65,9 @@ common/
 fabric/                      # loom + jar-in-jar 嵌入 common
 neoforge/  forge/            # 双端命令 + CommandEvent 历史记录 + 配置屏
 bukkit/                      # 服务端命令 + ServerCommandEvent + PlayerCommandPreprocessEvent，folia-supported
+paper/                       # **复用 bukkit 的源码**（sourceSets 指过去，不复制第二份）
+                             #   + Paper/Folia 专属：paper-plugin.yml 原生加载、Brigadier 命令、
+                             #     Adventure 可点击列表行、AsyncScheduler 每分钟异步落盘
 velocity/  bungee/           # 代理端命令 + 命令事件自记录
 ```
 
@@ -208,6 +212,11 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
 | --- | --- |
 | `/historycliserver`（别名 `historyclis`、`historycliser`） | `/historyserver`（别名 `historys`、`historyser`） |
 
+- **bukkit 版与 paper 版的命令名、别名完全一致，注册方式不同**：
+  bukkit 版走 `plugin.yml` 的 `commands` 字段；**paper 版的 `paper-plugin.yml` 没有该字段**，
+  只能经 `LifecycleEvents.COMMANDS` 用 Brigadier 注册——顺带得到两个好处：
+  返回 1/0 让 `/execute` 这类自动化能感知失败（Bukkit 路径恒返回 true），
+  且 `LifecycleEventManager` 会在每次需要时（含 `/reload`）重新注册，不必自己处理重载时序。
 - 权限：mod 端用 `Permissions.COMMANDS_GAMEMASTER`（原 op level 2）；Bukkit 端为 op 或 `historycli.*` 权限节点。
 - **集成服务器**同样可注册（`enable_integrated_history=true`），并非"仅专用服务器"。
 - 命令入史来源：
@@ -272,7 +281,7 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
 ## 5. 构建与测试
 
 ```powershell
-.\gradlew.ps1 build          # 全 7 模块
+.\gradlew.ps1 build          # 全 8 模块
 .\gradlew.ps1 :common:test   # 单测
 ```
 
@@ -319,8 +328,8 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
 4. **代理端展开只能执行代理端注册的命令**：展开到后端的命令会回报 `not_executable`。
 5. **客户端短名可能遮蔽服务端同名命令**（Fabric 客户端命令在客户端命令树中优先）。
 6. **Bukkit 记录点在 `EventPriority.LOW`**：若其它插件在其之后才取消该命令，该条仍会入史。
-7. **崩溃不丢历史仅限代理端**：Velocity/BungeeCord 每分钟定时异步落盘；
-   Bukkit/mod 端仅在 `onDisable`/停服/断线时写盘，进程被 kill 会丢失本次会话新增记录。
+7. **崩溃不丢历史**：Velocity/BungeeCord **与 paper 版**每分钟定时异步落盘；
+   **bukkit 版**与 mod 端仅在 `onDisable`/停服/断线时写盘，进程被 kill 会丢失本次会话新增记录。
    （`-w` 已改为"写临时文件 + 原子替换"，落盘过程中崩溃不会再截断整个日志。）
 8. **BungeeCord 控制台命令不入史**：该版本 API 未提供 `CommandEvent`，无钩子可用（见 §4）。
    同理，BungeeCord 侧的控制台 `!` 展开也不可用。
@@ -333,7 +342,30 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
     - ✅ **NeoForge 客户端已实测**（`gradlew :neoforge:runClient`）：日志证明
       `Mixing ClientPacketListenerMixin ... into ClientPacketListener`、两个 `@Inject` 均应用成功，
       敲 `/time set ...` 后 `/history` 能列出并落盘到 `local/historycli/command_history.log`。
-    - ⬜ 其余端待实测：Fabric 客户端/服务端、Forge 客户端（新 mixin）、Bukkit/代理端。
+    - ⬜ 其余端待实测：Fabric 客户端/服务端、Forge 客户端（新 mixin）、Velocity/Bungee 代理端。
+    - ✅ **Bukkit 系已实测**（2026-09-28，三台 26.1.2 真机：`paper-26.1.2-74`、
+      `Spigot-566f972-690a402`、`Folia-26.1.2-8`）：加载 → 启用 → RCON 调用
+      （`list` / `reload` → `Config reloaded` / `plugins` → 显示本插件）→ 停服 `history saved` 三端全通；
+      **`folia-supported: true` 在 Folia 上成立**，`api-version: '26.1'` 三端均被接受。
+    - ✅ **paper 版 jar 已实测**（2026-09-28）：`paper-plugin.yml` 让 Paper **用自己的加载器**
+      加载它——`/plugins` 把它列在 **`Paper Plugins`** 分组（对照：bukkit 版列在 `Bukkit Plugins`）；
+      命令经 `LifecycleEvents.COMMANDS` 用 **Brigadier** 注册，主命令与全部别名
+      （`historyclis`/`historycliser`/`historys`/`historyser`）实测可用；Folia 上同样成立；
+      并打出 `Paper build: Brigadier commands + clickable rows + async flush every 1m`；
+      **kill -9 防丢验证通过**——不发 `stop` 直接强杀 JVM，磁盘上仍有 3 条历史，
+      证明 `AsyncScheduler` 定时落盘生效（此时 `onDisable` 从未执行）；
+      **误装到 Spigot 时优雅降级**：打印「请改用 historycli-bukkit-*.jar」后干净禁用。
+      > 类型隔离的坑（实测踩过两次）：只把 Paper 类型移出**方法描述符**不够——
+      > JVM 在**类校验阶段**就会解析方法体内 `LifecycleEvents.COMMANDS` 等引用的类型，
+      > 曾导致 Spigot 上 `NoClassDefFoundError: LifecycleEventType`，连提示都来不及打印。
+      > 结论：`PaperHistoryPlugin` 字节码里**一个 Paper 类型都不能有**，
+      > 全部委托给只有确认是 Paper 之后才会被调用的 `PaperSupport`（已用逐字节扫描验证）。
+    - ✅ **控制台录制路径已实测**（stdin 注入，Paper 26.1.2 + bukkit jar）：
+      4 条控制台命令全部入史并落盘到 `command_history.log`，`Command exception` 0 条
+      → `ServerCommandEvent` 录制链路端到端成立。
+      > 踩坑记录：命令必须**等 `Done` 之后**再注入——与 `Done` 同 tick 时
+      > 原版 `CommandSourceStack.getLevel()` 还是 null，所有命令（含 `/stop`）都会 NPE。
+      > 这是测试装置的问题，与插件无关（异常栈里没有任何本项目类）。
     - **静态已核对**：全部 `@Inject` 目标方法都存在于对应 26.2 jar 中
       （`handleChatCommand`/`handleSignedChatCommand`/`handleConsoleInput`/`sendCommand`/`sendChat`），
       参数签名与注入方法一致——历史上（2026-08-31 的日志）旧 jar 用了不存在的 `handleCommand`，

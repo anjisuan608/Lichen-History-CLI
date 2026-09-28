@@ -39,6 +39,7 @@ jobs:
             neoforge/build/libs/historycli-neoforge-*.jar
             forge/build/libs/historycli-forge-*.jar
             bukkit/build/libs/historycli-bukkit-*.jar
+            paper/build/libs/historycli-paper-*.jar
             velocity/build/libs/historycli-velocity-*.jar
             bungee/build/libs/historycli-bungee-*.jar
 

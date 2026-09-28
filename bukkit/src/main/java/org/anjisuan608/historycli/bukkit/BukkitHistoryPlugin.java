@@ -29,7 +29,7 @@ import java.util.Map;
  * 只监听 {@link ServerCommandEvent} 会导致<b>玩家命令完全不入史</b>
  * （该事件的 javadoc 明确写着 “called when a command is run by a non-player”）。</p>
  */
-public final class BukkitHistoryPlugin extends JavaPlugin implements Listener {
+public class BukkitHistoryPlugin extends JavaPlugin implements Listener {
 
     private HistoryStore store;
     /** reload 时在配置线程写、命令/事件线程读 → 必须 volatile（Folia 上跨区域线程）。 */
@@ -52,12 +52,62 @@ public final class BukkitHistoryPlugin extends JavaPlugin implements Listener {
             getLogger().warning("Failed to read history file, starting with an empty history: " + e);
         }
 
+        registerCommands();
+        getServer().getPluginManager().registerEvents(this, this);
+        getLogger().info("Lichen History CLI (Bukkit) enabled, language=" + getConfig().getString("language", "en_us"));
+    }
+
+    /**
+     * 注册命令。<b>bukkit 版</b>走 {@code plugin.yml} 的声明式注册；
+     * <b>paper 版</b>必须覆盖它——{@code paper-plugin.yml} 没有 {@code commands} 字段，
+     * 命令要经 {@code LifecycleEvents.COMMANDS} 用 Brigadier 注册（见 {@code PaperHistoryPlugin}）。
+     */
+    protected void registerCommands() {
         getCommand("historycliserver").setExecutor(bukkitCommand(true));
         getCommand("historyserver").setExecutor(bukkitCommand(false));
         getCommand("historycliserver").setTabCompleter((s, c, a, args) -> suggest(s, args, true));
         getCommand("historyserver").setTabCompleter((s, c, a, args) -> suggest(s, args, false));
-        getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("Lichen History CLI (Bukkit) enabled, language=" + getConfig().getString("language", "en_us"));
+    }
+
+    /**
+     * 权限门 + 处理器分派，返回本次操作是否成功。
+     *
+     * <p>抽出来是因为它要被<b>两条注册路径</b>共用：Bukkit 的 {@code CommandExecutor}
+     * （返回值恒为 true，语义是"已处理"）与 Paper 的 Brigadier（把 boolean 映射成 1/0，
+     * 让 {@code /execute} 这类自动化能感知失败）。</p>
+     */
+    protected boolean dispatchToHandler(CommandSender sender, String[] args, boolean allowFull) {
+        if (!permitted(sender, args, allowFull)) {
+            sender.sendMessage(tr(HistoryCommandHandler.Keys.NO_PERMISSION));
+            return false;
+        }
+        return new BukkitHandler(this, store, sender, allowFull).handle(args);
+    }
+
+    /**
+     * 历史存储（只读访问）。给子类用——Paper 端要基于它做定时异步落盘。
+     * <p>不返回可变状态：{@link HistoryStore} 自身的方法已全部 {@code synchronized}。</p>
+     */
+    protected final HistoryStore historyStore() {
+        return store;
+    }
+
+    /**
+     * 发送一条普通消息。Paper 端覆盖为 Adventure {@code Component} 发送（保留 hover/颜色能力），
+     * 原版 Bukkit 端保持 {@link CommandSender#sendMessage(String)}。
+     */
+    protected void sendLine(CommandSender sender, String text) {
+        sender.sendMessage(text);
+    }
+
+    /**
+     * 发送一条列表行。默认与 {@link #sendLine} 相同；Paper 端覆盖成
+     * 「点击执行该条历史」的可点击行。
+     *
+     * @param index 1 起的历史序号（供点击回调拼 {@code !<index>}）
+     */
+    protected void sendRowLine(CommandSender sender, int index, String text) {
+        sender.sendMessage(text);
     }
 
     @Override
@@ -96,7 +146,7 @@ public final class BukkitHistoryPlugin extends JavaPlugin implements Listener {
         store.setMaxSize(getConfig().getInt("history_size", 500));
     }
 
-    private java.util.List<String> suggest(CommandSender sender, String[] args, boolean allowFull) {
+    protected java.util.List<String> suggest(CommandSender sender, String[] args, boolean allowFull) {
         if (!permitted(sender, args, allowFull)) {
             return java.util.Collections.emptyList();
         }
@@ -172,11 +222,8 @@ public final class BukkitHistoryPlugin extends JavaPlugin implements Listener {
 
     private org.bukkit.command.CommandExecutor bukkitCommand(boolean allowFull) {
         return (sender, command, label, args) -> {
-            if (!permitted(sender, args, allowFull)) {
-                sender.sendMessage(tr(HistoryCommandHandler.Keys.NO_PERMISSION));
-                return true;
-            }
-            new BukkitHandler(BukkitHistoryPlugin.this, store, sender, allowFull).handle(args);
+            dispatchToHandler(sender, args, allowFull);
+            // 恒返回 true：语义是"这条命令由我处理了"，与权限拒绝时的行为保持一致
             return true;
         };
     }
@@ -252,17 +299,23 @@ public final class BukkitHistoryPlugin extends JavaPlugin implements Listener {
 
         @Override
         protected void sendMessage(String key, Object... args) {
-            sender.sendMessage(plugin.tr(key, args));
+            plugin.sendLine(sender, plugin.tr(key, args));
         }
 
         @Override
         protected void sendError(String key, Object... args) {
-            sender.sendMessage(plugin.tr(key, args));
+            plugin.sendLine(sender, plugin.tr(key, args));
         }
 
         @Override
         protected void sendRow(String text) {
-            sender.sendMessage(text);
+            plugin.sendLine(sender, text);
+        }
+
+        @Override
+        protected void sendRow(int index, String command) {
+            // 序号与命令分开下发，让 Paper 端能构造「点击执行第 N 条」的行
+            plugin.sendRowLine(sender, index, index + "  " + command);
         }
 
         @Override

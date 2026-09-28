@@ -1,0 +1,72 @@
+name: LichenHistoryCli
+version: '${version}'
+# Paper/Folia 专用构建（编译依赖 paper-api）。
+# CraftBukkit / Spigot 请改用 historycli-bukkit-*.jar——两个 jar 插件名相同，不可同时安装。
+main: org.anjisuan608.historycli.paper.PaperHistoryPlugin
+# 必须 <= 实际支持的最低 Paper 版本：本插件声明支持 26.1.x ~ 26.3，故取 26.1。
+# 格式为 major.minor（Paper 的 PluginMeta 会把 26.1.2 这类补丁版本归并成 26.1）；
+# 写成比最低支持版本更大的值（如 26.2）会让 26.1.x 服务器认为插件需要更新的 API。
+api-version: '26.1'
+authors:
+  - anjisuan608
+# Folia 要求该字段；本实现只用 AsyncScheduler/GlobalRegionScheduler，不用 Bukkit 调度器
+folia-supported: true
+description: Bash-like history command management for Minecraft.
+commands:
+  historycliserver:
+    description: Full history server command
+    usage: /historycliserver [list | <num> | -c | -w | -a | -r | -d <n> | reload | help | !...]
+    aliases:
+      - historyclis
+      - historycliser
+  historyserver:
+    description: History server command (bash subset)
+    usage: /historyserver [<num> | -c | -w | -a | -r | help]
+    aliases:
+      - historys
+      - historyser
+permissions:
+  # 命令入口权限：无此权限者看不到/用不了本 mod 的命令
+  historycli.use:
+    description: View the command history
+    default: op
+  # 子命令级权限（代码内按动作判定；op 默认全通过）
+  historycli.list:
+    description: List history entries
+    default: op
+    children:
+      historycli.use: true
+  historycli.clear:
+    description: Clear history (-c)
+    default: op
+  historycli.write:
+    description: Write history to file (-w)
+    default: op
+  historycli.append:
+    description: Append history to file (-a)
+    default: op
+  historycli.read:
+    description: Read history from file (-r)
+    default: op
+  historycli.delete:
+    description: Delete a history entry (-d)
+    default: op
+  historycli.execute:
+    description: Re-run a command via ! expansion
+    default: op
+  historycli.reload:
+    description: Reload configuration
+    default: op
+  historycli.*:
+    description: All Lichen History CLI permissions
+    default: op
+    children:
+      historycli.use: true
+      historycli.list: true
+      historycli.clear: true
+      historycli.write: true
+      historycli.append: true
+      historycli.read: true
+      historycli.delete: true
+      historycli.execute: true
+      historycli.reload: true

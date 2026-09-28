@@ -75,6 +75,17 @@ public abstract class HistoryCommandHandler {
     /** 平台实现：发送列表行（字面，不翻译）。 */
     protected abstract void sendRow(String text);
 
+    /**
+     * 带序号的列表行：默认把「序号 + 两空格 + 命令」拼好后交给 {@link #sendRow(String)}，
+     * 现有平台行为完全不变。需要按序号做交互（如 Paper 端的"点击执行该条"）时覆盖本方法。
+     *
+     * @param index   1 起的历史序号
+     * @param command 该条命令原文（不含序号前缀）
+     */
+    protected void sendRow(int index, String command) {
+        sendRow(index + "  " + command);
+    }
+
     /** 平台实现：真正执行一条命令（由 ! 展开后调用）。 */
     protected abstract void executeCommand(String command);
 
@@ -287,7 +298,7 @@ public abstract class HistoryCommandHandler {
         }
         int start = (count > 0 && count < total) ? total - count : 0;
         for (int i = start; i < total; i++) {
-            sendRow((i + 1) + "  " + snapshot.get(i));
+            sendRow(i + 1, snapshot.get(i));
         }
     }
 

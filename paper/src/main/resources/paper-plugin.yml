@@ -1,0 +1,59 @@
+# Paper/Folia 原生插件描述符（Paper 优先读它；CraftBukkit/Spigot 只认同目录下的 plugin.yml）。
+#
+# 注意：paper-plugin.yml **没有 commands 字段**——命令必须经
+# LifecycleEvents.COMMANDS 用 Brigadier 注册，见 PaperHistoryPlugin#registerCommands。
+name: LichenHistoryCli
+version: '${version}'
+main: org.anjisuan608.historycli.paper.PaperHistoryPlugin
+# 必须 <= 实际支持的最低 Paper 版本：本插件声明支持 26.1.x ~ 26.3，故取 26.1。
+api-version: '26.1'
+authors:
+  - anjisuan608
+# Folia 要求该字段写在 paper-plugin.yml（或 plugin.yml）里
+folia-supported: true
+description: Bash-like history command management for Minecraft.
+# 权限节点与 plugin.yml 保持一致；未声明时 Bukkit 对未知节点按 op 默认判定，行为相同，
+# 声明出来是为了能在 /permissions 与权限插件补全里看到。
+permissions:
+  historycli.use:
+    description: View the command history
+    default: op
+  historycli.list:
+    description: List history entries
+    default: op
+    children:
+      historycli.use: true
+  historycli.clear:
+    description: Clear history (-c)
+    default: op
+  historycli.write:
+    description: Write history to file (-w)
+    default: op
+  historycli.append:
+    description: Append history to file (-a)
+    default: op
+  historycli.read:
+    description: Read history from file (-r)
+    default: op
+  historycli.delete:
+    description: Delete a history entry (-d)
+    default: op
+  historycli.execute:
+    description: Re-run a command via ! expansion
+    default: op
+  historycli.reload:
+    description: Reload configuration
+    default: op
+  historycli.*:
+    description: All Lichen History CLI permissions
+    default: op
+    children:
+      historycli.use: true
+      historycli.list: true
+      historycli.clear: true
+      historycli.write: true
+      historycli.append: true
+      historycli.read: true
+      historycli.delete: true
+      historycli.execute: true
+      historycli.reload: true

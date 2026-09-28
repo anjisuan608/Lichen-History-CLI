@@ -269,4 +269,54 @@ class HistoryCommandHandlerTest {
 
         assertEquals(java.util.List.of("gamerule doDaylightCycle false"), h.executed);
     }
+
+    @Test
+    void defaultRowHookKeepsLegacyFormatting() {
+        // 只覆盖无序号 sendRow(String) 的平台（fabric/velocity/bungee/bukkit），
+        // 输出必须仍是「序号 + 两空格 + 命令」——paper 端依赖这个默认委托保持两端一致
+        FakeHandler h = new FakeHandler(store(), true);
+        assertTrue(h.handle(new String[]{"list"}));
+        assertEquals(java.util.List.of(
+                "1  /tp @s 0 100 0",
+                "2  say hello",
+                "3  summon zombie"), h.messages);
+    }
+
+    @Test
+    void indexedRowHookReceivesIndexAndCommandSeparately() {
+        // paper 端要按序号拼「点击重跑」的命令，所以序号与命令必须分开下发
+        List<Integer> indices = new ArrayList<>();
+        List<String> commands = new ArrayList<>();
+        List<String> plainRows = new ArrayList<>();
+
+        HistoryCommandHandler h = new HistoryCommandHandler(store(), true) {
+            @Override
+            protected void sendMessage(String key, Object... args) {
+            }
+
+            @Override
+            protected void sendError(String key, Object... args) {
+            }
+
+            @Override
+            protected void sendRow(String text) {
+                plainRows.add(text);
+            }
+
+            @Override
+            protected void sendRow(int index, String command) {
+                indices.add(index);
+                commands.add(command);
+            }
+
+            @Override
+            protected void executeCommand(String command) {
+            }
+        };
+
+        assertTrue(h.handle(new String[]{"list"}));
+        assertEquals(java.util.List.of(1, 2, 3), indices);
+        assertEquals(java.util.List.of("/tp @s 0 100 0", "say hello", "summon zombie"), commands);
+        assertTrue(plainRows.isEmpty(), "覆盖了带序号的重载后不应再走无序号路径");
+    }
 }
