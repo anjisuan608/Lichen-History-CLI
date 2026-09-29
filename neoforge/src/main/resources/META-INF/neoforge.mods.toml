@@ -15,8 +15,8 @@ credits = "${mod_credits}"
 iconFile = "icon.png"
 logoFile = "icon.png"
 
-# 不声明依赖的话本 mod 会被加载到任意 Minecraft/NeoForge 版本上，
-# 与「按 26.2 编译与测试」的事实相冲突（AGENTS.md 曾宣称 26.1~26.2 单 jar 通用）。
+# 不声明依赖的话本 mod 会被加载到任意 Minecraft/NeoForge 版本上。
+# 声明范围 = minecraft_version_range（MC 侧 [26.1,27)）+ neo_version_min（loader 侧取 26.1 线下限）；
 [[dependencies.${mod_id}]]
 modId = "neoforge"
 type = "required"

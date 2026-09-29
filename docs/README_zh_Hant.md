@@ -24,8 +24,8 @@ Lichen History CLI 把熟悉的 **bash `history` 指令** 帶進 Minecraft —�
 | 平台 | 產物 | Minecraft | 說明 |
 | --- | --- | --- | --- |
 | Fabric / Quilt | `historycli-fabric-*.jar` | 26.1 ~ 26.3 | 模組 —— 用戶端與專用伺服器 |
-| NeoForge | `historycli-neoforge-*.jar` | 26.2+ | 模組 —— 用戶端與專用伺服器 |
-| Forge | `historycli-forge-*.jar` | 26.2+ | 模組 —— 用戶端與專用伺服器 |
+| NeoForge | `historycli-neoforge-*.jar` | 26.1 ~ 26.3 | 模組 —— 用戶端與專用伺服器 |
+| Forge | `historycli-forge-*.jar` | 26.1 ~ 26.3 | 模組 —— 用戶端與專用伺服器 |
 | CraftBukkit / Spigot（也能跑在 Paper 上） | `historycli-bukkit-*.jar` | 26.1.x ~ 26.3 | 一般 Bukkit 外掛（`plugin.yml`） |
 | Paper / Purpur / Leaves / Leaf + Folia | `historycli-paper-*.jar` | 26.1.x ~ 26.3 | **Paper 原生外掛**（`paper-plugin.yml`） |
 | Sponge（SpongeVanilla / SpongeForge） | `historycli-sponge-*.jar` | 1.21.1 ~ 26.3¹，Sponge API ≥ 12 | Sponge 外掛（`sponge_plugins.json`） |

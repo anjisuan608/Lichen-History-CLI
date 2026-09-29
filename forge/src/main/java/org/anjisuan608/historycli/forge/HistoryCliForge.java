@@ -45,55 +45,14 @@ public final class HistoryCliForge {
         readConfig();
         MinecraftForge.EVENT_BUS.register(this);
         if (net.minecraftforge.fml.loading.FMLEnvironment.dist.isClient()) {
-            MinecraftForge.EVENT_BUS.register(ForgeClientEvents.INSTANCE);
-            // 没有这行，Forge 玩家在模组列表里永远打不开本 mod 的配置界面
-            // （HistoryConfigScreen 只有声明、从未被任何地方构造）
-            MinecraftForge.registerConfigScreen(
-                    parent -> new org.anjisuan608.historycli.forge.client.HistoryConfigScreen(parent));
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                if (clientStore != null) {
-                    clientStore.write();
-                }
-            }, "LichenHistoryCLI-Client-Save"));
+            // 客户端专用逻辑整体下沉到 ForgeClientHooks：@Mod 类的常量池里不能出现任何客户端类型，
+            // 否则专用服务器在构造 @Mod 类时就会因解析 Screen 直接崩（真机实测踩过，详见 ForgeClientHooks 类注释）。
+            org.anjisuan608.historycli.forge.client.ForgeClientHooks.registerClient();
         }
     }
 
-    /**
-     * 客户端发送路径拦截：普通命令记录；! 系列展开。
-     *
-     * @return null 表示取消发送；返回值与入参不同表示以返回值替换；相同表示照常发送
-     */
-    public static String interceptClientCommand(String command) {
-        if (command == null || command.isEmpty()) {
-            return command;
-        }
-        initClientStore();
-        if (clientStore == null) {
-            return command;
-        }
-        if (command.startsWith("!")) {
-            if (!HistoryCommandHandler.isBangRequest(command)) {
-                // `!foo bar` 这类多词输入不是展开请求：原样放行，且按约定不入史
-                return command;
-            }
-            String expanded = clientStore.resolve(command);
-            if (expanded == null || expanded.startsWith("!")) {
-                // 无匹配，或匹配到历史中的字面量 `!!` 行（再次展开会无限递归）
-                net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-                if (mc.gui != null && mc.gui.hud != null) {
-                    mc.gui.hud.getChat().addClientSystemMessage(
-                            net.minecraft.network.chat.Component.translatable(
-                                    HistoryCommandHandler.Keys.NO_MATCH,
-                                    net.minecraft.network.chat.Component.literal(command)));
-                }
-                return null;
-            }
-            clientStore.add(expanded);
-            return HistoryCommandHandler.stripLeadingSlash(expanded);
-        }
-        clientStore.add(command);
-        return command;
-    }
+    // 客户端的 ! 展开拦截已移至 client.ForgeClientHooks#interceptClientCommand：
+    // 服务端可达的 @Mod 类里不能出现 Minecraft/Screen 等客户端类型（否则专用服务器加载即崩）。
 
     @SubscribeEvent
     public void registerCommands(RegisterCommandsEvent event) {
@@ -112,14 +71,20 @@ public final class HistoryCliForge {
 
     @SubscribeEvent
     public void onCommand(CommandEvent event) {
-        if (serverStore == null || event.getParseResults() == null) {
-            return;
+        // 每条命令（含原版命令）都会先过这里：异常一旦逃逸，原版只回一句 command.failed、
+        // 且日志里不留堆栈，表现出来就是"全局所有命令都执行出错"（真机实测踩过）。
+        try {
+            if (serverStore == null || event.getParseResults() == null) {
+                return;
+            }
+            String cmd = event.getParseResults().getReader().getString();
+            if (cmd == null || cmd.isEmpty() || cmd.startsWith("!")) {
+                return;
+            }
+            serverStore.add(cmd);
+        } catch (Throwable t) {
+            LOGGER.error("[lichenhistorycli] CommandEvent listener threw", t);
         }
-        String cmd = event.getParseResults().getReader().getString();
-        if (cmd == null || cmd.isEmpty() || cmd.startsWith("!")) {
-            return;
-        }
-        serverStore.add(cmd);
     }
 
     @SubscribeEvent
@@ -205,7 +170,7 @@ public final class HistoryCliForge {
         LOGGER.info("Lichen History CLI (Forge server) loaded, history at {}", file);
     }
 
-    static void initClientStore() {
+    public static void initClientStore() {
         if (clientStore != null) {
             return;
         }

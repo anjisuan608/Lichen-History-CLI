@@ -44,7 +44,7 @@ public final class ForgeClientEvents {
             if (!org.anjisuan608.historycli.HistoryCommandHandler.isBangRequest(message)) {
                 return;   // 不是展开请求 → 原样作为聊天发出
             }
-            String expanded = HistoryCliForge.interceptClientCommand(message);
+            String expanded = org.anjisuan608.historycli.forge.client.ForgeClientHooks.interceptClientCommand(message);
             // 抑制原输入（展开失败时也不要把字面量 `!!` 当聊天发出去）
             event.setMessage("");
             if (expanded != null && !expanded.isEmpty()) {
@@ -57,7 +57,7 @@ public final class ForgeClientEvents {
         }
         if (message.startsWith("/")) {
             // 记录命令（去掉前导 /），其余原样放行
-            HistoryCliForge.interceptClientCommand(message.substring(1));
+            org.anjisuan608.historycli.forge.client.ForgeClientHooks.interceptClientCommand(message.substring(1));
         }
     }
 

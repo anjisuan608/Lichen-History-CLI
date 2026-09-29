@@ -91,10 +91,10 @@ gson 在 Paper/Velocity/BungeeCord 运行时均由平台提供，brigadier 只�
 
 | 构建版本（编译/dev 用） | 最低版本（写进元数据，低于它拒载） |
 | --- | --- |
-| `minecraft_version=26.2`（**被 forge 用作构件坐标，不能动**） | `minecraft_version_range=[26.2,27)`（mod 平台元数据） |
+| `minecraft_version=26.2`（**被 forge 用作构件坐标，不能动**） | `minecraft_version_range=[26.1,27)`（mod 平台元数据，Forge/NeoForge 共用） |
 | **`minecraft_version_fabric=26.1.2`**（Fabric 单独的编译目标） | `minecraft_version_range_fabric=>=26.1 <27`（Fabric 语法是 `>=X <Y`，见下方 Fabric 小节） |
-| `neo_version=26.2.0.69` | `neo_version_min=26.2.0.69` → `neoforge.mods.toml` 的 `versionRange` |
-| `forge_version=65.1.3` | `forge_version_min=65.1.3` → `mods.toml` 的 `versionRange` |
+| `neo_version=26.2.0.88` | `neo_version_min=26.1.0.0` → `neoforge.mods.toml` 的 `versionRange` |
+| `forge_version=65.1.3` | `forge_version_min=62.0.0` → `mods.toml` 的 `versionRange` |
 | `fabric_loader_version=0.19.3` | `fabric_loader_version_min=0.19.3` → `fabric.mod.json` 的 `depends.fabricloader` |
 
 初始下限 = 构建版本（只在这些版本上验证过）；日后在更老版本上实测通过，**单独下调 `*_min` 即可**，
@@ -160,6 +160,79 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
 5. **`fabric.mod.json` 没有 `credits` 根字段**（Fabric Loader 报 `Unsupported root entry "credits"`）→ 已删除，
    致谢由 README/AGENTS 承载；`fabric/build.gradle` 的 expand 里也不再传 `mod_credits`。
 6. **Quilt** 直接吃 Fabric 那份 jar（Quilt 兼容 Fabric 模组），无独立产物。
+
+### NeoForge/Forge 版本兼容 —— 26.1 ~ 26.3
+
+与 Fabric 不同，**loader 版本与 MC 版本绑死**（`net.minecraftforge:forge:<mc>-<fg>`、`neo_version=<mc>.<build>`），
+所以这里不改构建版本，只按 §2 的既定原则**单独下调范围与 `*_min`**：
+
+1. **元数据**（已构建核验）：`minecraft_version_range=[26.1,27)`、`neo_version_min=26.1.0.0`、
+   `forge_version_min=62.0.0` —— 生成的 `neoforge.mods.toml` 是 `[26.1.0.0,)` + `[26.1,27)`、
+   `mods.toml` 是 `[62.0.0,)` + `[26.1,27)`。**编译仍在 26.2**（`minecraft_version`/`neo_version`/`forge_version` 不动）。
+   > forge 主版本与 MC 的对应：**62=26.1.0、63=26.1.1、64=26.1.2、65=26.2、66=26.3**，
+   > 所以下限取 `62.0.0` 才与 `[26.1,27)` 一致（取 64.x 会把 26.1.0/26.1.1 挡在外面）。
+2. ⚠️ **NeoForge 的 26.3 版本带 `-beta` 后缀**（`26.3.0.16-beta` …，共 16 个），
+   26.1/26.2 则无后缀（`26.1.2.109`、`26.2.0.88`）——查版本/拼 URL 时**必须带后缀**，否则一律 404（踩过）。
+3. **平台 API 逐类核对（floor/ceiling 双版本）**：
+   - Forge `26.1.2-64.1.3` / `26.3-66.0.6` 的 universal：`RegisterCommandsEvent`、`CommandEvent`、
+     `ServerStartedEvent`、`ServerStoppingEvent`、`MinecraftForge` **两版都在**；`@Mod` 在同版本的
+     `javafmllanguage` 构件里 **两版都在**（`FMLPaths` 同理，属 FML 层、版本无关）。
+   - NeoForge `26.1.2.109` / `26.3.0.16-beta` 的 universal：我们用的 8 个 `net.neoforged.*` 类
+     （`NeoForge`、`RegisterCommandsEvent`、`CommandEvent`、`ServerStarted/StoppingEvent`、
+     `RegisterClientCommandsEvent`、`ClientPlayerNetworkEvent`、`ClientStoppedEvent`）**两版都在**。
+   - vanilla 侧（mixin 目标与 `sendChat`/`sendCommand`/`handleConsoleInput`、`GuiGraphicsExtractor`）
+     由 **Fabric 生产实测（26.1.2 与 26.3）+ loom named jar** 双重背书 —— 两端用同一套 mojmap 名字。
+4. **运行时实测状态见 §6**：四格（两端 × floor/ceiling）已用**生产安装器 + RCON** 全部通过；
+   走 dev run 会撞上第 6 条与 §6 的网络坑，因此运行时验证一律用生产环境。
+5. **按 floor 编译当场抓到的真 bug（已修）**：`HistoryCliForge` 与 `HistoryCliNeoForge` 都用
+   `mc.gui.hud` 发"无匹配"提示 —— `Gui.hud` **26.2 才有**，而 `Gui.getChat()`（≤26.1）与之两版互斥，
+   在 26.1 上**编译不过**（与 Fabric 同一个坑，见上方 Fabric 小节第 2 条）。两端统一改为
+   `LocalPlayer#sendSystemMessage(Component)`（只判 `mc.player != null`），与 Fabric 侧写法一致。
+   > 这正是"按最低版本编译"的价值：只按 26.2 编译的话，这个 bug 要到 26.1 真机上才暴露。
+6. ⚠️ **Forge dev run 起不来（既有问题，与版本无关）**：`jar { enabled = false }`（为避免与 shadowJar
+   同名互覆）之下，FML 在 dev 里只拿到 `build/resources/main` **一个根** —— 该目录有 `mods.toml`
+   却没有任何 class，直接报 `constructed 0 mods ... The following classes are missing`。
+   故 Forge 的运行时验证**走生产安装器实测**（与 Fabric/Bukkit/Paper 同一套方法），不依赖
+   `:forge:runServer`；NeoForge/Forge 共用的 dev run 说明因此只列 Fabric/NeoForge。
+7. **编译矩阵（两端 × floor/ceiling，2026-09-29 全部通过）**：
+
+   | | floor | ceiling |
+   | --- | --- | --- |
+   | Forge | `26.1.2-64.1.3` ✅ | `26.3-66.0.6` ✅ |
+   | NeoForge | `26.1.2.109` ✅ | `26.3.0.16-beta` ✅ |
+
+   用 `-P` 覆盖构建版本即可复现（不改 `gradle.properties`）：
+   ```powershell
+   gradlew :forge:compileJava   -Pminecraft_version=26.1.2 -Pforge_version=64.1.3
+   gradlew :forge:compileJava   -Pminecraft_version=26.3   -Pforge_version=66.0.6
+   gradlew :neoforge:compileJava -Pneo_version=26.1.2.109
+   gradlew :neoforge:compileJava -Pneo_version=26.3.0.16-beta
+   ```
+   > `minecraft_version` 只被 forge 构件坐标消费、`neo_version` 只被 MDG 消费，
+   > 所以命令行覆盖它们不会波及其它模块（Fabric 已切到独立的 `minecraft_version_fabric`）。
+   > **但是**：换版本会触发 FG/MDG 重新解析该版本的 loader 构件，机器上会遇到上面 §6 的网络坑，
+   > 需按配方预置缓存（mavenizer 缓存 / `.m2` 的 `mojang-meta` 件）。
+8. ⚠️ **`@Mod` 类里不能出现任何客户端类型（真机实测；与 MC 版本无关的通用坑）**：
+   - **症状**：Forge/NeoForge 专用服务器一起服就 FATAL ——
+     `Attempted to load class net/minecraft/client/gui/screens/Screen for invalid dist DEDICATED_SERVER`，
+     栈顶是 `FMLModContainer.constructMod → Class.getDeclaredConstructor → RuntimeDistCleaner`，
+     即**构造 `@Mod` 类的瞬间**就崩，mod 没有任何初始化机会。
+   - **成因**（javap 常量池证据）：`HistoryCliForge` / `HistoryCliNeoForge` 曾经
+     1. 构造器里直接写配置屏 lambda `parent -> new HistoryConfigScreen(parent)` —— 合成方法
+        `lambda$new$0(Screen): Screen` 把 `Screen` 写进 `@Mod` 类常量池；
+     2. `interceptClientCommand` 方法体里直接写 `Minecraft.getInstance()` / `mc.player.sendSystemMessage`。
+        **只把调用放进 `if (dist.isClient())` 挡不住**：JVM 在 link/verify 阶段就按常量池解析这些类型。
+   - **修法**：客户端引用全部下沉到客户端专用类
+     （`forge/…/client/ForgeClientHooks`、`neoforge/…/client/NeoForgeClientHooks`），
+     `@Mod` 类只留一句 `if (dist.isClient()) ForgeClientHooks.registerClient(...)` —— 该 `invokestatic`
+     的描述符是 `()V`、不含客户端类型，且服务端分支不执行 → 钩子类永不被加载。
+     客户端调用方（`ForgeClientEvents`、两端 mixin）随之改调钩子类。
+   - **回归判据**（可复现，构建后必查）：
+     ```powershell
+     javap -p -v -classpath <解压后的 jar> org.anjisuan608.historycli.forge.HistoryCliForge | findstr net/minecraft/client
+     ```
+     **必须无输出**；一旦有输出，专用服务器必崩。
+   - 该 bug 长期潜伏的原因：Forge/NeoForge 服务端此前从未真机测过（AGENTS 里一直是 ⬜）。
 
 产物命名：`historycli-<加载器>-<版本>.jar`。每个 shadow 模块**只产出这一个 jar**——
 普通 `jar` 任务被禁用（它与 `shadowJar` 默认文件名相同、会互相覆盖，可能发布出缺少 `common` 的空壳 jar），
@@ -372,7 +445,37 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
     - ✅ **NeoForge 客户端已实测**（`gradlew :neoforge:runClient`）：日志证明
       `Mixing ClientPacketListenerMixin ... into ClientPacketListener`、两个 `@Inject` 均应用成功，
       敲 `/time set ...` 后 `/history` 能列出并落盘到 `local/historycli/command_history.log`。
-    - ⬜ 其余端待实测：Fabric 客户端/服务端、Forge 客户端（新 mixin）、Velocity/Bungee 代理端。
+    - ✅ **Forge / NeoForge 服务端四格全部通过**（2026-09-29，**生产安装器** + RCON 驱动，非 dev run）：
+
+      | | floor | ceiling |
+      | --- | --- | --- |
+      | Forge | `26.1.2-64.1.3` ✅ | `26.3-66.0.6` ✅ |
+      | NeoForge | `26.1.2.109` ✅ | `26.3.0.16-beta` ✅ |
+
+      每格判据全部成立：mod 加载日志 `Lichen History CLI (Forge/NeoForge server) loaded`
+      → 原版对照 `list`/`help` 有回显 → `historycliserver`（裸，回显 1..N 列表）、
+      `historycliserver list`（回显 1..4）、`historycliserver reload`（`Config reloaded`）
+      → `stop` 干净停服打印 `history saved` → `local/historycli/command_history.log`
+      收全 **6 条** 命令 → **errors 0**（我方 try/catch 兜底 0 触发）。
+      > 这一轮同时修掉两个只有真机才会暴露的问题（见 §2「NeoForge/Forge 版本兼容」第 5、8 条）：
+      > `@Mod` 类混入客户端类型 → 专用服务器构造 mod 类即崩；`gui.hud` → 26.1 编译不过。
+      > 测试装置：`boot-test5.ps1`（RCON 驱动）——**控制台 stdin 在本机连纯净原版都会失败**，
+      > 见上面「喂控制台的两条硬规矩」与 `MC_DEBUG_*` 开关。
+    - ⬜ 其余端待实测：Fabric **客户端**、Forge/NeoForge **客户端**（配置屏与客户端 mixin，
+      本轮把客户端代码整体搬进了 `*ClientHooks`，客户端 dist 尚未回归）、Velocity/Bungee 代理端。
+    - ✅ **Fabric 服务端已实测**（2026-09-29）：
+      - **MC 26.1.2 生产环境**（`fabric-installer` 组装、intermediary 映射，非 dev/Mojmap）：
+        mod 加载（含 jar-in-jar 嵌入的 `common`）→ **mixin 全部应用、零报错** → `Done (3.018s)` →
+        4 条命令执行并打印列表 → **71 bytes 历史入盘**。这一轮同时证实了两件事：
+        **① mixin 不需要 refmap**（Loom 1.17 默认关闭 Mixin AP，生产由 Fabric Loader 的 Mixin 0.17.x
+        运行时重映射；加 `loom.mixin{}` 反而报弃用、写 `"refmap"` 键反而刷 "could not be read" 警告，
+        两者均已移除）；**② `fabric.mod.json` 不认 `credits` 根字段**（`Unsupported root entry`，已删）。
+      - **MC 26.3 用户真机实测**：构建成功、模组正常运行。
+      - 版本覆盖 `>=26.1 <27`（编译目标 `minecraft_version_fabric=26.1.2`）；mixin 目标已用 named jar
+        javap 核对 **26.1.2 / 26.2 全部存在**，26.3 由上面的实测背书。
+      - **26.2 生产未单独测**：给它装服时误用了 `fabric-api +26.1.2`（只认 26.1.x）→
+        `Incompatible mods found`——这是**测试装置**问题，换 `0.161.0+26.2` 即可；26.2 夹在已验证的
+        编译下限与实测上限之间，风险很低但如实记录。
     - ✅ **Bukkit 系已实测**（2026-09-28，三台 26.1.2 真机：`paper-26.1.2-74`、
       `Spigot-566f972-690a402`、`Folia-26.1.2-8`）：加载 → 启用 → RCON 调用
       （`list` / `reload` → `Config reloaded` / `plugins` → 显示本插件）→ 停服 `history saved` 三端全通；
@@ -420,15 +523,59 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
       `Command.Raw.commandTree()` 在 12→19 由无参变为 `commandTree(RegistryHolder)`，
       但它是 `default` 且我们不覆盖，故无影响（API 21 无构件可 diff，改由 26.3 真机实测直接背书）。
     - **Sponge 无 op API**（op 属权限体系）：非玩家发送者（控制台/命令方块）一律放行，玩家按节点判定。
-    - ⚠️ **踩坑记录（网络）**：安装 SpongeVanilla 26.3 时发现——本机 `JAVA_TOOL_OPTIONS` 里的
-      `-Djava.net.preferIPv4Stack=true` **会让 `launchermeta.mojang.com` 的 TLS 握手被重置**（默认反而 200），
-      即"强制 IPv4 对部分主机是毒药"；**该开关不可全局常开**，只在特定主机需要时按次注入。
+    - ⚠️ **踩坑记录（网络，按主机分野）**：
+      - **跑 Gradle 时带上** `$env:JAVA_TOOL_OPTIONS='-Djava.net.preferIPv4Stack=true'`：
+        实测**去掉它会连续两次**在 `:forge` 配置期报 `HttpConnectTimeoutException: HTTP connect timed out`，
+        带上后历史构建基本都成功——它**显著提高成功率但不能保证**（带上后仍偶发超时，
+        是 Mojang 侧瞬时不可达，**重跑即可**）。
+      - **同一个开关**却会让 `launchermeta.mojang.com` 的 **TLS 握手被重置**（不带反而 200）
+        → 跑 `fabric-installer` / SpongeVanilla 安装器这类**直连 Mojang 清单**的工具时要**去掉**它。
+      - 结论：**构建带、安装器不带**。`:forge` 配置期超时或 `maven.fabricmc.net` 读超时时，先怀疑网络、
+        重跑；急着验证其它模块可**绕开 `:forge` 的配置期**：
+        `gradlew --configure-on-demand :common:build :fabric:build ...`（已验证可用，省去 Mojang 下载）。
+      - **Java → `maven.minecraftforge.net` 连接超时**（FG7 的 mcmaven 在 `downloadSources` /
+        `injectData` 处卡死）：用 PowerShell 把构件预置进 mavenizer 缓存即可绕开 ——
+        `%USERPROFILE%\.gradle\caches\minecraftforge\forgegradle\mavenizer\caches\maven\{MinecraftForge,forge}\net\minecraftforge\forge\<mc>-<fg>\`，
+        放 `forge-<v>-universal.jar`、`-sources.jar`、`-userdev.jar` 各自的 `.jar` + 同名 `.sha1`
+        （内容是纯 40 位 hex、**无换行**）。预置后 26.1.2 / 26.3 的完整 decompile+patch 管线均跑通（已实测）。
+      - **`net.neoforged:minecraft-dependencies:<mc>` 只存在于 `https://maven.neoforged.net/mojang-meta/`** ——
+        MDG 的 `RepositoriesPlugin` 会额外建这个仓，而 `releases` 里**连目录都没有**（直接探 404，易误判"不存在"）。
+        本机 init 脚本删掉了所有含 `neoforged.net` 的仓 → 必须用 PowerShell 从 mojang-meta 把它的
+        `.pom`+`.module` 预置进 `.m2`（26.1.2 与 26.3 都踩过，症状是
+        `Could not find net.neoforged:minecraft-dependencies:X`）。
+      - **NeoForge 安装器优先读 `.m2`**（日志会打 `Downloaded file locally from ... valid checksum`）：
+        远端被重置时，把 `These libraries failed to download` 清单里的 GAV 从 **Maven Central**
+        （`repo.maven.apache.org`，Java/PowerShell 都通）补进 `.m2` 再重跑即可；通用库
+        （asm-util/asm-analysis/night-config core+toml/maven-artifact/typetools/
+        terminalconsoleappender/jline-reader/jline-terminal）都能这样补齐（已实测）。
     - ✅ **控制台录制路径已实测**（stdin 注入，Paper 26.1.2 + bukkit jar）：
       4 条控制台命令全部入史并落盘到 `command_history.log`，`Command exception` 0 条
       → `ServerCommandEvent` 录制链路端到端成立。
       > 踩坑记录：命令必须**等 `Done` 之后**再注入——与 `Done` 同 tick 时
       > 原版 `CommandSourceStack.getLevel()` 还是 null，所有命令（含 `/stop`）都会 NPE。
       > 这是测试装置的问题，与插件无关（异常栈里没有任何本项目类）。
+      > **喂控制台的两条硬规矩（Forge 侧实测踩过，插件端同样适用）**：
+      > ① **别用 cmd 的 `echo` 走管道** —— 它产出 `stop\r\n`，而 stdin 是管道时原版**不剥尾随 CR**：
+      >    带贪心参数的命令会把 CR 吞进参数、**裸命令（如 `stop`）直接 parse 失败**
+      >    （报 `Incorrect argument for command` + `stop <--[HERE]`）。改用 **LF-only 的 stdin 文件**
+      >    （`[IO.File]::WriteAllText($f, ($cmds -join "`n") + "`n", ASCII)` + `-RedirectStandardInput $f`）：
+      >    命令会在 `Done` 后的首个 tick 统一执行，实测**不会**踩到上面的 `getLevel()==null`。
+      > ② **别用 `timeout /t N` 做延时** —— 它在管道里读 stdin，会打印
+      >    `错误: 不支持带有输入重定向的...` 并**立刻退出**（stderr 可见），后续命令瞬间全部灌入。
+      >    要延时用 `ping -n <秒+1> 127.0.0.1 >nul`（不读 stdin）。
+      >
+      > **原版会吞掉命令异常**：任何逃逸的未受检异常都被转译成 `command.failed`
+      > （"An unexpected error occurred trying to execute that command"）发给命令源，
+      > **日志里没有任何堆栈**（`latest.log` / `debug.log` / stdout 全查过）。
+      > 反汇编 `net.minecraft.commands.Commands` 才发现：堆栈只在
+      > `SharedConstants.DEBUG_VERBOSE_COMMAND_ERRORS || IS_RUNNING_IN_IDE` 时才打
+      > （`sendFailure(describeError(t))` + `LOGGER.error("'{}' threw an exception", cmd, t)`）。
+      > **让原版开口的办法**（`SharedConstants.debugFlag` 模板为 `MC_DEBUG_\u0001`）：
+      > 给服务端 JVM 加 `-DMC_DEBUG_ENABLED=true -DMC_DEBUG_VERBOSE_COMMAND_ERRORS=true`
+      > —— 命令异常的完整堆栈就会进 `latest.log`，这是定位这类问题的唯一现场。
+      > 即便如此，mod 自己也应 try/catch 并 `LOGGER.error(..., t)`：那两个开关只有测试时才开。
+      > `ForgeServerCommand` / `NeoForgeServerCommand` 的 `run(...)`/`requires(...)`、
+      > 两个 mod 类的 `onCommand(...)` 已按此兜住。
     - **静态已核对**：全部 `@Inject` 目标方法都存在于对应 26.2 jar 中
       （`handleChatCommand`/`handleSignedChatCommand`/`handleConsoleInput`/`sendCommand`/`sendChat`），
       参数签名与注入方法一致——历史上（2026-08-31 的日志）旧 jar 用了不存在的 `handleCommand`，

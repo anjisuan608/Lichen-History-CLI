@@ -48,18 +48,42 @@ public final class NeoForgeServerCommand {
             LiteralArgumentBuilder<CommandSourceStack> builder,
             NeoForgeHandler handler) {
         return builder
-                .requires(s -> s.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER))
+                // 权限判定也要兜住：异常在 parse 阶段逃逸时，原版只会回一句 command.failed
+                // 且**不打堆栈**（Forge 侧真机实测），现场无从排查。
+                .requires(s -> {
+                    try {
+                        return s.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER);
+                    } catch (Throwable t) {
+                        HistoryCliNeoForge.LOGGER.error("[lichenhistorycli] permission check threw", t);
+                        return false;
+                    }
+                })
                 .executes(ctx -> {
                     handler.setSource(ctx.getSource());
-                    return handler.handle(new String[0]) ? 1 : 0;
+                    return run(handler, new String[0]);
                 })
                 .then(Commands.argument("rest", StringArgumentType.greedyString())
                         .suggests(org.anjisuan608.historycli.HistorySuggestions.suggest(handler.allowFull()))
                         .executes(ctx -> {
                             handler.setSource(ctx.getSource());
-                            return handler.handle(HistoryParser.split(StringArgumentType.getString(ctx, "rest")).toArray(new String[0]))
-                                    ? 1 : 0;
+                            return run(handler, HistoryParser.split(StringArgumentType.getString(ctx, "rest")).toArray(new String[0]));
                         }));
+    }
+
+    /**
+     * 执行并把未受检异常写进日志：原版把命令异常统一吞成 {@code command.failed} 转译，
+     * 控制台只看得到 "An unexpected error occurred trying to execute that command"、
+     * <b>没有任何堆栈</b>（真机实测），不自己记一笔就永远查不出根因。
+     *
+     * @return 1 成功 / 0 失败
+     */
+    private static int run(NeoForgeHandler handler, String[] args) {
+        try {
+            return handler.handle(args) ? 1 : 0;
+        } catch (Throwable t) {
+            HistoryCliNeoForge.LOGGER.error("[lichenhistorycli] command threw: {}", String.join(" ", args), t);
+            return 0;
+        }
     }
 
     private static final class NeoForgeHandler extends HistoryCommandHandler {

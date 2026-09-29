@@ -44,53 +44,14 @@ public final class HistoryCliNeoForge {
         readConfig();
         NeoForge.EVENT_BUS.register(this);
         if (net.neoforged.fml.loading.FMLEnvironment.getDist().isClient()) {
-            NeoForge.EVENT_BUS.register(NeoForgeClientEvents.INSTANCE);
-            modContainer.registerExtensionPoint(net.neoforged.neoforge.client.gui.IConfigScreenFactory.class,
-                    (mc, parent) -> new org.anjisuan608.historycli.neoforge.client.HistoryConfigScreen(parent));
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                if (clientStore != null) {
-                    clientStore.write();
-                }
-            }, "LichenHistoryCLI-Client-Save"));
+            // 客户端专用逻辑整体下沉到 NeoForgeClientHooks：@Mod 类的常量池里不能出现任何客户端类型，
+            // 否则专用服务器在构造 @Mod 类时就会因解析 Screen 直接崩（Forge 侧真机实测踩过）。
+            org.anjisuan608.historycli.neoforge.client.NeoForgeClientHooks.registerClient(modContainer);
         }
     }
 
-    /**
-     * 客户端命令发送拦截（由 mixin 调用）：普通命令记录；! 系列展开。
-     *
-     * @return null 表示取消发送；返回值与入参不同表示以返回值替换发送；相同表示照常发送
-     */
-    public static String interceptClientCommand(String command) {
-        if (command == null || command.isEmpty()) {
-            return command;
-        }
-        initClientStore();
-        if (clientStore == null) {
-            return command;
-        }
-        if (command.startsWith("!")) {
-            if (!org.anjisuan608.historycli.HistoryCommandHandler.isBangRequest(command)) {
-                // `!foo bar` 这类多词输入不是展开请求：原样放行，且按约定不入史
-                return command;
-            }
-            String expanded = clientStore.resolve(command);
-            if (expanded == null || expanded.startsWith("!")) {
-                // 无匹配，或匹配到历史中的字面量 `!!` 行（再次展开会无限递归）
-                net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-                if (mc.gui != null && mc.gui.hud != null) {
-                    mc.gui.hud.getChat().addClientSystemMessage(
-                            net.minecraft.network.chat.Component.translatable(
-                                    org.anjisuan608.historycli.HistoryCommandHandler.Keys.NO_MATCH,
-                                    net.minecraft.network.chat.Component.literal(command)));
-                }
-                return null;
-            }
-            clientStore.add(expanded);
-            return org.anjisuan608.historycli.HistoryCommandHandler.stripLeadingSlash(expanded);
-        }
-        clientStore.add(command);
-        return command;
-    }
+    // 客户端的 ! 展开拦截已移至 client.NeoForgeClientHooks#interceptClientCommand：
+    // 服务端可达的 @Mod 类里不能出现 Minecraft/Screen 等客户端类型（否则专用服务器加载即崩）。
 
     @SubscribeEvent
     public void registerCommands(RegisterCommandsEvent event) {
@@ -109,14 +70,20 @@ public final class HistoryCliNeoForge {
 
     @SubscribeEvent
     public void onCommand(CommandEvent event) {
-        if (serverStore == null || event.getParseResults() == null) {
-            return;
+        // 每条命令（含原版命令）都会先过这里：异常一旦逃逸，原版只回一句 command.failed、
+        // 且日志里不留堆栈，表现出来就是"全局所有命令都执行出错"（Forge 侧真机实测踩过）。
+        try {
+            if (serverStore == null || event.getParseResults() == null) {
+                return;
+            }
+            String cmd = event.getParseResults().getReader().getString();
+            if (cmd == null || cmd.isEmpty() || cmd.startsWith("!")) {
+                return;
+            }
+            serverStore.add(cmd);
+        } catch (Throwable t) {
+            LOGGER.error("[lichenhistorycli] CommandEvent listener threw", t);
         }
-        String cmd = event.getParseResults().getReader().getString();
-        if (cmd == null || cmd.isEmpty() || cmd.startsWith("!")) {
-            return;
-        }
-        serverStore.add(cmd);
     }
 
     @SubscribeEvent
@@ -202,7 +169,7 @@ public final class HistoryCliNeoForge {
         LOGGER.info("Lichen History CLI (NeoForge server) loaded, history at {}", file);
     }
 
-    static void initClientStore() {
+    public static void initClientStore() {
         if (clientStore != null) {
             return;
         }

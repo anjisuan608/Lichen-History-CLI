@@ -24,8 +24,8 @@ Lichen History CLI brings the familiar **bash `history` command** to Minecraft �
 | Platform | Artifact | Minecraft | What it is |
 | --- | --- | --- | --- |
 | Fabric / Quilt | `historycli-fabric-*.jar` | 26.1 ~ 26.3 | mod — client and dedicated server |
-| NeoForge | `historycli-neoforge-*.jar` | 26.2+ | mod — client and dedicated server |
-| Forge | `historycli-forge-*.jar` | 26.2+ | mod — client and dedicated server |
+| NeoForge | `historycli-neoforge-*.jar` | 26.1 ~ 26.3 | mod — client and dedicated server |
+| Forge | `historycli-forge-*.jar` | 26.1 ~ 26.3 | mod — client and dedicated server |
 | CraftBukkit / Spigot (also runs on Paper) | `historycli-bukkit-*.jar` | 26.1.x ~ 26.3 | plain Bukkit plugin (`plugin.yml`) |
 | Paper / Purpur / Leaves / Leaf + Folia | `historycli-paper-*.jar` | 26.1.x ~ 26.3 | **native Paper plugin** (`paper-plugin.yml`) |
 | Sponge (SpongeVanilla / SpongeForge) | `historycli-sponge-*.jar` | 1.21.1 ~ 26.3¹, Sponge API ≥ 12 | Sponge plugin (`sponge_plugins.json`) |

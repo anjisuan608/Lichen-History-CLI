@@ -28,7 +28,7 @@ public abstract class ClientPacketListenerMixin {
 
     @Inject(method = "sendCommand", at = @At("HEAD"), cancellable = true)
     private void historycli$expand(String command, CallbackInfo ci) {
-        String result = HistoryCliForge.interceptClientCommand(command);
+        String result = org.anjisuan608.historycli.forge.client.ForgeClientHooks.interceptClientCommand(command);
         if (result == null) {
             // 无匹配：interceptClientCommand 已提示 NO_MATCH，取消发送
             ci.cancel();

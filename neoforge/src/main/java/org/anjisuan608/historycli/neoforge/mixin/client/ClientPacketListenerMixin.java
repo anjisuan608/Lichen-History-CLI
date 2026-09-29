@@ -23,7 +23,7 @@ public abstract class ClientPacketListenerMixin {
 
     @Inject(method = "sendCommand", at = @At("HEAD"), cancellable = true)
     private void historycli$expand(String command, CallbackInfo ci) {
-        String result = HistoryCliNeoForge.interceptClientCommand(command);
+        String result = org.anjisuan608.historycli.neoforge.client.NeoForgeClientHooks.interceptClientCommand(command);
         if (result == null) {
             ci.cancel();
             return;
@@ -44,7 +44,7 @@ public abstract class ClientPacketListenerMixin {
         if (message == null || message.isEmpty() || !message.startsWith("!")) {
             return;
         }
-        String result = HistoryCliNeoForge.interceptClientCommand(message);
+        String result = org.anjisuan608.historycli.neoforge.client.NeoForgeClientHooks.interceptClientCommand(message);
         if (result == null) {
             // 无匹配：interceptClientCommand 已经提示过 NO_MATCH
             ci.cancel();
