@@ -195,8 +195,14 @@ public final class HistoryStore {
             if (parent != null) {
                 Files.createDirectories(parent);
             }
-            Files.write(file, pending, StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE);
+            try (java.io.Writer w = Files.newBufferedWriter(file, StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE)) {
+                for (String line : pending) {
+                    // 显式写 LF：与 writeAtomically 保持一致，避免 Windows 产出 CRLF
+                    w.write(line);
+                    w.write('\n');
+                }
+            }
         } catch (IOException e) {
             dirtyCount += previous;
             throw new UncheckedIOException("Failed to append " + file, e);
@@ -210,8 +216,15 @@ public final class HistoryStore {
             Files.createDirectories(parent);
         }
         Path tmp = file.resolveSibling(file.getFileName().toString() + ".tmp");
-        Files.write(tmp, lines, StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+        try (java.io.Writer w = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
+            for (String line : lines) {
+                // 显式写 LF：Files.write(Iterable,...) 会用**平台行分隔符**，
+                // Windows 上产出 CRLF，与配置文件（恒 LF）及跨平台搬运的习惯不一致。
+                w.write(line);
+                w.write('\n');
+            }
+        }
         try {
             Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (AtomicMoveNotSupportedException e) {

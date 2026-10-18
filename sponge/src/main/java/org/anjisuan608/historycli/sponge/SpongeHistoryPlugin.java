@@ -94,7 +94,10 @@ public final class SpongeHistoryPlugin {
 
         JsonObject root = HistoryCliConfigIO.loadOrCreate(configFile);
 
-        Path history = Paths.get("local", "historycli", "command_history.log");
+        // 相对路径会落在**进程 CWD**：换个工作目录启动时历史会"凭空消失"。
+        // 改用游戏目录（Sponge.game().gameDirectory()），与 AGENTS §3 记载的
+        // <服务器目录>/local/historycli/command_history.log 保持一致。
+        Path history = Sponge.game().gameDirectory().resolve("local/historycli/command_history.log");
         try {
             Files.createDirectories(history.getParent());
         } catch (Exception e) {

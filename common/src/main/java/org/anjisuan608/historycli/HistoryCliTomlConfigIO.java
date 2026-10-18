@@ -78,9 +78,20 @@ public final class HistoryCliTomlConfigIO {
         JsonObject root = new JsonObject();
         Map<String, Map<String, String>> sections = new LinkedHashMap<>();
         String current = null;
+        // 出现"既不是空行/注释、也不是 section、又没有 ="的行 ⇒ 文件已损坏。
+        // 之前这类行被静默跳过，平台层只看 entrySet().isEmpty() 就误判"加载成功"，
+        // 于是 reload 回了 Config reloaded 而设置悄悄回落默认值（违反 AGENTS §3）。
+        boolean malformed = false;
+        boolean inMultiline = false; // """ 块内的行不参与判定
         for (String rawLine : toml.split("\r?\n")) {
             String line = stripComment(rawLine).trim();
             if (line.isEmpty()) {
+                continue;
+            }
+            if (inMultiline) {
+                if (line.contains("\"\"\"")) {
+                    inMultiline = false;
+                }
                 continue;
             }
             if (line.startsWith("[") && line.endsWith("]")) {
@@ -89,7 +100,11 @@ public final class HistoryCliTomlConfigIO {
             }
             int eq = indexOfAssignment(line);
             if (eq <= 0) {
+                malformed = true;
                 continue;
+            }
+            if (line.contains("\"\"\"")) {
+                inMultiline = true;
             }
             String key = unquote(line.substring(0, eq).trim());
             String value = line.substring(eq + 1).trim();
@@ -105,6 +120,12 @@ public final class HistoryCliTomlConfigIO {
                 obj.add(kv.getKey(), toPrimitive(kv.getValue()));
             }
             root.add(sec.getKey(), obj);
+        }
+        if (malformed) {
+            // 返回空对象 ⇒ 平台层的 entrySet().isEmpty() 会把它当"损坏"处理：
+            // reload 回 config_reload_failed、启动时保留当前设置并告警，
+            // 而不是拿默认值顶替还报"重载成功"。
+            return new JsonObject();
         }
         return root;
     }

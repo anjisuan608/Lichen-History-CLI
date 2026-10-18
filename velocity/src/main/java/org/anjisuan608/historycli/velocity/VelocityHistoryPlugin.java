@@ -35,7 +35,7 @@ public final class VelocityHistoryPlugin {
     private HistoryStore store;
     private String language = "en_us";
     /** 是否记录"会被转发到后端服务器"的命令（默认否：代理历史只关心发给代理的命令）。 */
-    private boolean recordForwardedCommands = false;
+    private volatile boolean recordForwardedCommands = false;
 
     /**
      * 翻译表。用 {@code volatile} 引用整体替换（而不是原地 clear/putAll）：
@@ -79,7 +79,12 @@ public final class VelocityHistoryPlugin {
         // 定时异步落盘：只有 JVM 正常退出时才写盘的话，崩溃/被 kill 会丢掉整段历史
         server.getScheduler().buildTask(this, () -> {
             if (store != null && store.isDirty()) {
-                store.write();
+                try {
+                    store.write();
+                } catch (Throwable t) {
+                    // 定时任务里的异常别冒进调度器（可能停掉本任务）；与 paper/sponge 同口径
+                    logger.warn("Periodic history flush failed", t);
+                }
             }
         }).delay(30, TimeUnit.SECONDS).repeat(1, TimeUnit.MINUTES).schedule();
 

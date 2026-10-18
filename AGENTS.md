@@ -436,7 +436,11 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
 5. **客户端短名可能遮蔽服务端同名命令**（Fabric 客户端命令在客户端命令树中优先）。
 6. **Bukkit 记录点在 `EventPriority.LOW`**：若其它插件在其之后才取消该命令，该条仍会入史。
 7. **崩溃不丢历史**：Velocity/BungeeCord **与 paper 版**每分钟定时异步落盘；
-   **bukkit 版**与 mod 端仅在 `onDisable`/停服/断线时写盘，进程被 kill 会丢失本次会话新增记录。
+   **bukkit 版**仅在 `onDisable` 写盘，进程被 kill 会丢失本次会话新增记录。
+   mod 端：Fabric/NeoForge/Forge 停服时写盘（已加 try/catch，磁盘满不再中断停服序列）；
+   **Forge 客户端**在断线（`ClientPlayerNetworkEvent.LoggingOut`）与 JVM 关闭时均写盘，
+   与 NeoForge（LoggingOut+ClientStopped）/ Fabric（DISCONNECT）对齐。
+   代理端定时任务的 `write()` 也已加 try/catch（异常不冒进调度器）。
    （`-w` 已改为"写临时文件 + 原子替换"，落盘过程中崩溃不会再截断整个日志。）
 8. **BungeeCord 控制台命令不入史**：该版本 API 未提供 `CommandEvent`，无钩子可用（见 §4）。
    同理，BungeeCord 侧的控制台 `!` 展开也不可用。
@@ -578,8 +582,9 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
       > 给服务端 JVM 加 `-DMC_DEBUG_ENABLED=true -DMC_DEBUG_VERBOSE_COMMAND_ERRORS=true`
       > —— 命令异常的完整堆栈就会进 `latest.log`，这是定位这类问题的唯一现场。
       > 即便如此，mod 自己也应 try/catch 并 `LOGGER.error(..., t)`：那两个开关只有测试时才开。
-      > `ForgeServerCommand` / `NeoForgeServerCommand` 的 `run(...)`/`requires(...)`、
-      > 两个 mod 类的 `onCommand(...)` 已按此兜住。
+      > `ForgeServerCommand` / `NeoForgeServerCommand` / **`ServerHistoryCommand`（Fabric）**
+      > 的 `run(...)`/`requires(...)`、两个 mod 类的 `onCommand(...)` 与
+      > `HistoryCommandHandler.handle()`（catch `RuntimeException` + 回 `internal_error`）已按此兜住。
     - **静态已核对**：全部 `@Inject` 目标方法都存在于对应 26.2 jar 中
       （`handleChatCommand`/`handleSignedChatCommand`/`handleConsoleInput`/`sendCommand`/`sendChat`），
       参数签名与注入方法一致——历史上（2026-08-31 的日志）旧 jar 用了不存在的 `handleCommand`，
@@ -589,6 +594,41 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
     （>64）强制要求这两个字段，缺了会报
     `Pack declares support for version newer than 81, but is missing mandatory fields min_format and max_format`
     并回退解析——直接影响装在 `assets/<modid>/lang/` 下的翻译文件。
+    本项目 forge/neoforge 取 `pack_format: 84 / min_format: 84 / max_format: 99`
+    （26.1.x 资源版本≈84、26.2=88、26.3≈97，取下限 84 才不把 26.1.x 排除在区间外）；
+    fabric **不带** `pack.mcmeta` 是**正确的**：Fabric Loader 不合成，但
+    `fabric-resource-loader` 的 `ModPackResourcesUtil.openDefault` 会按当前版本
+    合成并委托原版 `PackFormat` 序列化（含 min/max），缺它不是故障。
+
+14. **2026-10-19 全项目审计修复（P2 批）**，一次性列出以免重复踩：
+    - **5 份 `*.mixins.json` 补 `"minVersion": "0.8.5"`**：之前每启动刷一条
+      `[mixin/ERROR] Mixin config ... does not specify "minVersion" or "requiredFeatures"`。
+      反汇编确认该分支**非致命**（`checkVersion()` 里 `null` → NONE → 仍返回 true），
+      但会误导排查；`compatibilityLevel` 保持 forge=JAVA_21 / 其余=JAVA_25 不变
+      （vanilla Mixin 0.8.7 枚举**止于 JAVA_21**，写 25 会 `MixinInitialisationError`）。
+    - **TOML 损坏识别**：`HistoryCliTomlConfigIO.parse` 之前把无法识别的赋值行
+      （既非空行/注释/section、又没有 `=`）**静默跳过**，平台层只看 `entrySet().isEmpty()`
+      就误判"加载成功"→ `reload` 回 `Config reloaded` 而设置悄悄回落默认值（违反 §3）。
+      现在出现这类行即判 `malformed`、返回空对象，由平台层的既有空判据转成
+      `config_reload_failed`；`"""` 块内行不参与判定。
+    - **Bukkit/Sponge 历史路径从 CWD 改为服务器目录**：`new File("local/...")` /
+      `Paths.get("local", ...)` 是**相对路径**，换工作目录启动（面板/守护进程/`java -jar`）
+      时历史会"凭空消失"。改为 `getServer().getWorldContainer()`（Bukkit）与
+      `Sponge.game().gameDirectory()`（Sponge，API 12 的 `Game#gameDirectory(): Path`）。
+      **注**：`Server` 接口上**没有**目录访问器，必须走 `Sponge.game()`。
+    - **`HistoryCommandHandler.handle()` 扩大 catch 面**：`HistoryParser.parse` 原本在
+      try **之外**（args 含 null 元素会 NPE 逃逸），且只 catch `UncheckedIOException`。
+      现在 parse 移进 try，并加 `catch (RuntimeException)` → 回新键
+      `historycli.msg.internal_error`（4 语言各 26 keys）。
+    - **`HistoryStore` 显式写 LF**：`Files.write(Iterable,...)` 会用**平台行分隔符**，
+      Windows 上产出 CRLF，与配置文件（恒 LF）不一致。改用
+      `Files.newBufferedWriter` + 逐行 `write('\n')`（`writeAtomically` 与 `append` 两处）。
+    - **代理端**：`recordForwardedCommands` 改 `volatile`（reload 在插件线程写、
+      命令/事件线程读）；定时任务里的 `store.write()` 加 try/catch（异常不冒进调度器）。
+    - **Forge 客户端补断线落盘**：新增 `ClientPlayerNetworkEvent.LoggingOut` 订阅
+      （已在 Forge `26.1.2-64.1.3` 与 `26.3-66.0.6` 的 universal jar 里 javap 核实存在），
+      与 NeoForge/Fabric 的断线写盘口径对齐；此前只有 JVM shutdown hook，
+      「断线后停在主菜单、进程被 kill」会丢整段会话历史。
 
 ---
 

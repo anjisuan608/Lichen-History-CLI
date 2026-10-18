@@ -9,6 +9,7 @@
   "historycli.msg.config_reloaded": "Config reloaded",
   "historycli.msg.config_reload_failed": "Config reload failed",
   "historycli.msg.io_error": "History file error: %s",
+  "historycli.msg.internal_error": "Internal error: %s",
   "historycli.msg.not_executable": "Command could not be executed: %s",
   "historycli.msg.no_match": "No matching history entry for '%s'",
   "historycli.msg.unknown_command": "Unknown command",

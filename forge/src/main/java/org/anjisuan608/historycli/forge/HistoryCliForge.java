@@ -128,8 +128,13 @@ public final class HistoryCliForge {
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
         if (serverStore != null) {
-            serverStore.write();
-            LOGGER.info("Lichen History CLI (Forge server) history saved");
+            // 停服落盘绝不能让异常中断停服序列：磁盘满/只读时 write() 会抛 UncheckedIOException
+            try {
+                serverStore.write();
+                LOGGER.info("Lichen History CLI (Forge server) history saved");
+            } catch (Throwable t) {
+                LOGGER.error("Failed to save history on shutdown", t);
+            }
         }
     }
 

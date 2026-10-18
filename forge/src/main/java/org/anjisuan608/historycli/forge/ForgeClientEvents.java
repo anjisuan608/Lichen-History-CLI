@@ -67,4 +67,26 @@ public final class ForgeClientEvents {
         org.anjisuan608.historycli.forge.client.ForgeClientCommand.register(
                 event.getDispatcher(), event.getBuildContext());
     }
+
+    /**
+     * 断线即写盘：Forge 侧原本只有 JVM shutdown hook，「断线后停在主菜单、随后进程被 kill」
+     * 会丢掉本次会话的全部新增历史；NeoForge 侧是 LoggingOut + ClientStopped 双保险、
+     * Fabric 是 DISCONNECT 即写，这里补齐成同一口径。
+     *
+     * <p>事件类型可用性已核：{@code ClientPlayerNetworkEvent$LoggingOut} 在 Forge
+     * {@code 26.1.2-64.1.3} 与 {@code 26.3-66.0.6} 的 universal jar 中都存在。
+     * 本类只在客户端 dist 被 {@link org.anjisuan608.historycli.forge.client.ForgeClientHooks}
+     * 注册，专用服务器不会加载它。</p>
+     */
+    @SubscribeEvent
+    public void onLogout(net.minecraftforge.client.event.ClientPlayerNetworkEvent.LoggingOut event) {
+        if (HistoryCliForge.clientStore != null) {
+            try {
+                HistoryCliForge.clientStore.write();
+                HistoryCliForge.LOGGER.info("Lichen History CLI (Forge client) history saved on disconnect");
+            } catch (Throwable t) {
+                HistoryCliForge.LOGGER.error("Failed to save client history on disconnect", t);
+            }
+        }
+    }
 }

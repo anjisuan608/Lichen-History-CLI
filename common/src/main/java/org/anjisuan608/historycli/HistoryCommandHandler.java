@@ -27,6 +27,7 @@ public abstract class HistoryCommandHandler {
         public static final String CONFIG_RELOADED = "historycli.msg.config_reloaded";
         public static final String CONFIG_RELOAD_FAILED = "historycli.msg.config_reload_failed";
         public static final String IO_ERROR = "historycli.msg.io_error";
+        public static final String INTERNAL_ERROR = "historycli.msg.internal_error";
         public static final String NOT_EXECUTABLE = "historycli.msg.not_executable";
         public static final String NO_MATCH = "historycli.msg.no_match";
         public static final String UNKNOWN_COMMAND = "historycli.msg.unknown_command";
@@ -109,15 +110,22 @@ public abstract class HistoryCommandHandler {
             sendError(Keys.STORE_NOT_INIT);
             return false;
         }
-        HistoryParser.Result result = HistoryParser.parse(args);
-        if (result == null) {
-            return false;
-        }
         try {
+            // parse 也放进 try：args 含 null 元素时它会 NPE，那是 RuntimeException，
+            // 下面的 catch 兜住它，避免逃逸到平台命令层变成无堆栈的 command.failed。
+            HistoryParser.Result result = HistoryParser.parse(args);
+            if (result == null) {
+                return false;
+            }
             return dispatch(result);
         } catch (UncheckedIOException e) {
             // 文件读写失败不应让命令/事件处理器直接抛异常，转成可翻译的错误提示。
             sendError(Keys.IO_ERROR, reason(e));
+            return false;
+        } catch (RuntimeException e) {
+            // 任何未受检异常都会被原版吞成 command.failed 且不留堆栈（AGENTS §6），
+            // 必须在这里兜住并回执，否则用户和日志都拿不到现场。
+            sendError(Keys.INTERNAL_ERROR, String.valueOf(e));
             return false;
         }
     }

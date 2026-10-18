@@ -9,6 +9,7 @@
   "historycli.msg.config_reloaded": "設定已重新載入",
   "historycli.msg.config_reload_failed": "設定重載失敗",
   "historycli.msg.io_error": "歷史檔案操作失敗：%s",
+  "historycli.msg.internal_error": "內部錯誤：%s",
   "historycli.msg.not_executable": "指令無法執行：%s",
   "historycli.msg.no_match": "沒有符合「%s」的歷史記錄",
   "historycli.msg.unknown_command": "未知指令",

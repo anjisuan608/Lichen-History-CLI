@@ -40,7 +40,10 @@ public class BukkitHistoryPlugin extends JavaPlugin implements Listener {
         saveDefaultConfig();
         applyConfig();
 
-        File file = new File("local/historycli/command_history.log");
+        // 相对路径会落在**进程 CWD**：换个工作目录启动（面板/守护进程/手动 java -jar）时
+        // 历史就会"凭空消失"。改用服务器根目录（world container），与 AGENTS §3 记载的
+        // <服务器目录>/local/historycli/command_history.log 保持一致。
+        File file = new File(getServer().getWorldContainer(), "local/historycli/command_history.log");
         file.getParentFile().mkdirs();
         store = new HistoryStore(file.toPath());
         applyStoreConfig();

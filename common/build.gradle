@@ -11,7 +11,13 @@ dependencies {
     testImplementation 'com.mojang:brigadier:1.2.9'
     testImplementation 'com.google.code.gson:gson:2.11.0'
 
-    testImplementation platform('org.junit:junit-bom:5.10.2')
+testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// common 会被 shade 进插件/代理、也会作为 jar-in-jar 嵌进 fabric jar，且**经 maven-publish 单独发布**
+// ⇒ 它本身是 LGPL-3.0-or-later 二进制，单独发布时也必须带上许可证文本（其余 8 个模块都有 LICENSE）。
+processResources {
+    from(rootProject.file('LICENSE'))
 }

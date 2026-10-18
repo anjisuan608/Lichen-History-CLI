@@ -45,7 +45,7 @@ public final class BungeeHistoryPlugin extends Plugin implements Listener {
     /** reload 时写、命令线程读 → 必须 volatile（Bungee 的命令在调用方线程上执行）。 */
     private volatile Map<String, String> messages = new HashMap<>();
     /** 是否记录"会被转发到后端服务器"的命令（默认否）。 */
-    private boolean recordForwardedCommands = false;
+    private volatile boolean recordForwardedCommands = false;
 
     @Override
     public void onEnable() {
@@ -73,7 +73,12 @@ public final class BungeeHistoryPlugin extends Plugin implements Listener {
         // 否则首次落盘要等 30 分钟。
         Runnable flush = () -> {
             if (store != null && store.isDirty()) {
-                store.write();
+                try {
+                    store.write();
+                } catch (Throwable t) {
+                    // 定时任务里的异常别冒进调度器（可能停掉本任务）；与 paper/sponge 同口径
+                    getLogger().warning("Periodic history flush failed: " + t);
+                }
             }
         };
         getProxy().getScheduler().schedule(this, flush, 30, TimeUnit.SECONDS);

@@ -1,5 +1,6 @@
 {
   "required": true,
+  "minVersion": "0.8.5",
   "package": "org.anjisuan608.historycli.forge.mixin.client",
   "compatibilityLevel": "JAVA_21",
   "mixins": [],

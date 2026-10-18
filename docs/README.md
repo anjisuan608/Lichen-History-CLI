@@ -41,7 +41,7 @@ Lichen History CLI brings the familiar **bash `history` command** to Minecraft â
 > **There is no "client build" and no "server build".** Each loader ships a **single jar**;
 > client, dedicated-server and integrated-server behaviour is selected **at runtime** by the
 > environment the mod is running in (mixin/event registration is environment-scoped, not build-scoped).
-> NeoForge/Forge are compiled and dependency-checked against **26.2** (`[26.2,27)`).
+> NeoForge/Forge are compiled and dependency-checked against **26.2** (`[26.1,27)`).
 -->
 
 ## ğŸ“– Usage overview

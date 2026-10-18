@@ -48,8 +48,13 @@ public final class HistoryCliFabric implements ModInitializer {
 
     private static void onServerStopping(MinecraftServer server) {
         if (serverStore != null) {
-            serverStore.write();
-            LOGGER.info("Lichen History CLI (Fabric server) history saved");
+            // 停服落盘绝不能让异常打断停服序列：磁盘满/只读时 write() 会抛 UncheckedIOException
+            try {
+                serverStore.write();
+                LOGGER.info("Lichen History CLI (Fabric server) history saved");
+            } catch (Throwable t) {
+                LOGGER.error("Failed to save server history on shutdown", t);
+            }
         }
     }
 
