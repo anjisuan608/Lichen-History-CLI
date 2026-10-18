@@ -70,6 +70,26 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           echo "version=$VERSION" >> "$GITHUB_ENV"
 
+      # ⚠️ upload-artifact@v4 以所有搜索路径的**最小公共祖先**作为 artifact 根目录 ——
+      # 本项目 8 个模块分处 8 个不同的顶层目录，公共祖先即仓库根，因此 artifact 内部是
+      # `<模块>/build/libs/*.jar` 的嵌套结构；download 到 jars/ 后是
+      # `jars/<模块>/build/libs/*.jar`，而非扁平的 `jars/*.jar`。
+      # v0.1.0 的 Release 就因此一个 jar 都没挂上（action 日志：
+      # `Pattern 'jars/*.jar' does not match any files`），只剩 GitHub 自动的源码包。
+      # 这里显式平铺一层，附件名即为干净的 `historycli-<loader>-<version>.jar`。
+      # （cp 用 `-t` 把目标放前面，才能用 `-exec ... {} +` 的批量形式、免去 `\;` 转义。）
+      - name: Flatten jars
+        run: |
+          mkdir -p dist
+          find jars -type f -name '*.jar' -exec cp -vt dist/ {} +
+          ls -l dist/
+          count=$(find dist -maxdepth 1 -name '*.jar' | wc -l)
+          echo "collected $count jar(s)"
+          if [ "$count" -eq 0 ]; then
+            echo "::error::artifact 里没有找到任何 jar，Release 附件会是空的"
+            exit 1
+          fi
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
@@ -77,4 +97,4 @@ jobs:
           name: Lichen History CLI ${{ env.version }}
           draft: false
           prerelease: false
-          files: jars/*.jar
+          files: dist/*.jar
