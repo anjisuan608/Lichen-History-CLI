@@ -391,8 +391,12 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
 .\gradlew.ps1 :common:test   # 单测
 ```
 
-- 需要 JDK 25 + Gradle（wrapper **9.8.0**，已加 `distributionSha256Sum` 校验；
+- 需要 JDK 25 + Gradle（wrapper **9.8.1**，已加 `distributionSha256Sum` 校验；
   `networkTimeout=60000` + `retries=3`，避免大发行版在慢链路上 10 秒读超时直接失败）。
+  > 升级 Gradle 版本用 `./gradlew wrapper --gradle-version <v> --gradle-distribution-sha256-sum <sha>`；
+  > 它**会把 `networkTimeout`/`retries` 重置成 10000/0**（并删掉注释），升级后必须手动改回，
+  > 否则慢链路上必然超时。官方 checksum 取自 `https://services.gradle.org/versions/current` 的 `checksum` 字段。
+  > 另注：官方会下架旧发行版（9.8.0 现已 404），本地缓存被清后旧版本将无法再下载。
 - 运行目录：客户端 `run/Client`，服务端 `run/Server`（Fabric/NeoForge）。
 - `common` 单测 **69 个、0 失败**，覆盖：
   - `HistoryStore`：落盘 / `dirtyCount`（`-r` 不丢未落盘行、`delete`/`trim` 后的不变量）、
