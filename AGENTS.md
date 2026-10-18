@@ -41,10 +41,13 @@
   （否则专用服务器会因解析客户端类型 `NoClassDefFoundError`）；
 - **Bukkit / Velocity / BungeeCord**：事件监听本身即由运行环境决定触发与否。
 
-> 依赖声明的 Minecraft 范围是 `[26.2,27)`（见 `gradle.properties` 的 `minecraft_version_range` 与各 `mods.toml` / `fabric.mod.json`）。
-> 此前 AGENTS.md 声称"26.1~26.2 单 jar 通用"，但**只按 26.2 编译与测试过**，且 mods.toml 里根本没有依赖声明，故已统一为 26.2+。
+> 依赖声明的 Minecraft 范围是 `[26.1,27)`（见 `gradle.properties` 的 `minecraft_version_range` 与各 `mods.toml`；
+> Fabric 用它自己的语法 `>=26.1 <27`，值来自 `minecraft_version_range_fabric`）。
+> **编译目标**：Fabric = `26.1.2`（独立键），NeoForge/Forge = `26.2`（`minecraft_version` 被 forge 构件坐标占用，见 §2）；
+> **Forge/NeoForge 的 26.1.2 与 26.3 四格已用生产安装器 + RCON 真机实测通过**，
+> 编译矩阵与复现命令见 §2「NeoForge/Forge 版本兼容」，运行时状态见 §6。
 >
-> **只有 Bukkit 系覆盖到 26.1**：插件没有 mod 那样的版本依赖声明，靠 `plugin.yml` 的 `api-version`
+> **Bukkit 系同样覆盖 26.1**：插件没有 mod 那样的版本依赖声明，靠 `plugin.yml` 的 `api-version: '26.1'`
 > 与"按最低版本编译"来保证，见 §2 的 Bukkit/Paper 版本兼容。
 
 ---
@@ -52,7 +55,7 @@
 ## 2. 构建结构（单仓库多模块，架构参考开源项目 LuckPerms）
 
 ```
-settings.gradle              # include :common :fabric :neoforge :forge :bukkit :paper :velocity :bungee
+settings.gradle              # include :common :fabric :neoforge :forge :bukkit :paper :sponge :velocity :bungee
 build.gradle                 # 版本三态逻辑 + subprojects 统一（group 取自 mod_group_id）
 gradle/libs.versions.toml    # 版本目录
 common/
@@ -391,9 +394,10 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
 - 需要 JDK 25 + Gradle（wrapper **9.8.0**，已加 `distributionSha256Sum` 校验；
   `networkTimeout=60000` + `retries=3`，避免大发行版在慢链路上 10 秒读超时直接失败）。
 - 运行目录：客户端 `run/Client`，服务端 `run/Server`（Fabric/NeoForge）。
-- `common` 单测 **56 个、0 失败**，覆盖：
+- `common` 单测 **59 个、0 失败**，覆盖：
   - `HistoryStore`：落盘 / `dirtyCount`（`-r` 不丢未落盘行、`delete`/`trim` 后的不变量）、
-    **`-w` 临时文件 + 原子替换**、`!!` 自引用剔除、数字溢出、孤立 `!` 拒绝、连续去重；
+    **`-w` 临时文件 + 原子替换**、`!!` 自引用剔除、数字溢出、孤立 `!` 拒绝、连续去重、
+    **并发 `write`/`append`（快照与写盘必须同临界区，否则会丢行/写重复行）**；
   - `HistoryCommandHandler`：reload 钩子（含失败回执）、IO 错误转译、递归防护
     （含 `historyxxx !n` 形态与深度上限）、畸形参数回报失败、存储未初始化；
   - `HistoryParser`（`HELP` 与 `PARSE_ERROR` 的区分）、`PermissionNode`（`use` 只读语义、通配）；

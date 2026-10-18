@@ -82,8 +82,11 @@ public final class ClientHistoryCommand {
         protected boolean reloadConfig() {
             // 一次 reload 同时刷新两端配置：FabricConfigHelper 只管 [client]，
             // HistoryCliFabric 负责 [server] 与 enable_integrated_history
-            HistoryCliFabric.reloadConfig();
-            return FabricConfigHelper.apply(HistoryCliFabricClient.store);
+            // 短路：reloadConfig() 判定配置损坏时返回 false，此时**不能**再用默认值覆盖 store
+            // 并回报成功——否则违反 AGENTS §3「配置损坏时 reload 回 config_reload_failed
+            //（不会回落成默认值还报重载成功）」。NeoForge/Forge 客户端那侧本就有这道闸门。
+            return HistoryCliFabric.reloadConfig()
+                    && FabricConfigHelper.apply(HistoryCliFabricClient.store);
         }
 
         @Override

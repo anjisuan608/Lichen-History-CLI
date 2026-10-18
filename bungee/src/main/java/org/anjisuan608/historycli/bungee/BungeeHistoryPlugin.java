@@ -55,7 +55,13 @@ public final class BungeeHistoryPlugin extends Plugin implements Listener {
         file.getParentFile().mkdirs();
         store = new HistoryStore(file.toPath());
         applyConfigToStore();
-        store.read();
+        try {
+            store.read();
+        } catch (Exception e) {
+            // 历史文件损坏（非 UTF-8 / 不可读）时用空历史继续，与 Bukkit/Sponge 同口径；
+            // 否则坏一个字节就让整个代理插件启用失败，命令与录制全部不可用。
+            getLogger().warning("Failed to read history file, starting with an empty history: " + e);
+        }
 
         getProxy().getPluginManager().registerCommand(this, bungeeCommand("historycliproxy", true, "historyclipro", "historyclip"));
         getProxy().getPluginManager().registerCommand(this, bungeeCommand("historyproxy", false, "historypro", "historyp"));

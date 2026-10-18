@@ -39,6 +39,12 @@ processResources {
     }
     from(rootProject.file('lang'))
     from(rootProject.file('LICENSE'))
+    // paper 复用 bukkit 的适配层源码，因此也复用它的 onEnable()——
+    // 那里面第一句就是 saveDefaultConfig()，资源缺失时 Bukkit 的 saveResource()
+    // 会直接抛 IllegalArgumentException，导致**全新服务器上 paper 版启用失败**
+    // （实测踩过：上一次 paper 真机测试通过，是因为测试目录残留了 bukkit 测试的同名 config.yml）。
+    // 只拷这一个文件，勿整目录 from(bukkit/resources)，否则会覆盖 paper 自己的 plugin.yml。
+    from(rootProject.file('bukkit/src/main/resources/config.yml'))
 }
 
 // 每个模块只产出 shadowJar 一个产物：普通 jar 与 shadowJar 默认文件名相同、会互相覆盖，

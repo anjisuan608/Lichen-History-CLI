@@ -8,7 +8,12 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -197,5 +202,47 @@ class HistoryStoreIoTest {
         // -w 用当前缓冲区全量覆盖，此时只剩最近 3 条
         store.write();
         assertEquals(List.of("c", "d", "e"), lines(file()));
+    }
+
+    /**
+     * 回归：并发的 {@code write()} / {@code append()} 必须在<b>同一个临界区</b>里完成「取快照 → 落盘」。
+     * <p>改动前是两段式（状态锁里取快照并清脏、{@code ioLock} 里写文件），两个写者会按与快照
+     * <b>相反</b>的顺序落盘：文件被旧快照覆盖而 {@code dirtyCount} 已清 0（丢行、且标记为已写入），
+     * 或 {@code append} 把 {@code write} 刚写过的行再追加一遍（重复行）。
+     * 本用例两个线程的<b>最后一步都是落盘</b>，因此结束时的判据是确定性的：
+     * 文件必须恰等于缓冲区、行不重复、且无未落盘行（返回 false 即说明存在未落盘行）。</p>
+     * <p>注：旧实现是否触发竞态取决于调度，本用例对旧实现是<b>概率性</b>捕获，
+     * 对新实现则恒成立 —— 作为「不得再把两段式写回来」的护栏。</p>
+     */
+    @Test
+    void concurrentWriteAndAppendNeverLoseOrDuplicateRows() throws Exception {
+        HistoryStore store = new HistoryStore(file());
+        store.setMaxSize(0);   // 不裁剪，行数才能当判据
+
+        int perThread = 400;
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> writer = pool.submit(() -> {
+                for (int i = 0; i < perThread; i++) {
+                    store.add("w-" + i);
+                    store.write();
+                }
+            });
+            Future<?> appender = pool.submit(() -> {
+                for (int i = 0; i < perThread; i++) {
+                    store.add("a-" + i);
+                    store.append();
+                }
+            });
+            writer.get(60, TimeUnit.SECONDS);
+            appender.get(60, TimeUnit.SECONDS);
+        } finally {
+            pool.shutdownNow();
+        }
+
+        List<String> onDisk = lines(file());
+        assertEquals(store.snapshot(), onDisk, "文件应与缓冲区一致（旧快照回退=丢行）");
+        assertEquals(onDisk.size(), new HashSet<>(onDisk).size(), "不应出现重复行");
+        assertFalse(store.isDirty(), "两个线程最后一步都是落盘，不应残留未写行");
     }
 }

@@ -64,6 +64,9 @@ processResources {
     inputs.property 'mod_license', rootProject.mod_license
     inputs.property 'fabric_loader_version_min', rootProject.fabric_loader_version_min
     inputs.property 'minecraft_version_range_fabric', rootProject.minecraft_version_range_fabric
+    // expand 用到 mod_authors：漏登记会让改作者后的增量构建不重跑 processResources，
+    // 产出的 fabric.mod.json 作者字段停留在旧值（forge/neoforge 两侧 8 个键均已登记）
+    inputs.property 'mod_authors', rootProject.mod_authors
     filesMatching('fabric.mod.json') {
         expand 'version': version, 'mod_id': rootProject.ext.modId, 'mod_name': rootProject.ext.modName,
                 'mod_license': rootProject.mod_license, 'mod_authors': rootProject.mod_authors,

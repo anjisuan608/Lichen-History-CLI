@@ -18,11 +18,16 @@ import java.util.List;
  *
  * <p>三个并发要点：</p>
  * <ol>
- *   <li><b>状态锁</b>：{@code buffer}/{@code dirtyCount} 的读写都在 {@code synchronized(this)} 内；</li>
- *   <li><b>文件锁 {@link #ioLock}</b>：{@code read/write/append} 三个文件操作互斥——
- *       它们在状态锁<b>之外</b>执行（避免磁盘 IO 阻塞命令线程），若不加锁，
- *       代理端定时落盘线程与命令线程的 {@code TRUNCATE_EXISTING} + {@code APPEND} 会交错，
- *       产生 NUL 空洞/重复尾行；</li>
+ *   <li><b>单监视器</b>：{@code buffer}/{@code dirtyCount} 的读写<b>与</b>
+ *       {@code read/write/append} 三个文件操作共用同一把锁（{@code synchronized(this)}）。
+ *       <b>不能</b>把"取快照"和"写文件"拆到两把锁里：那样两个写者会按与快照<b>相反</b>的
+ *       顺序落盘，旧快照覆盖新内容而 {@code dirtyCount} 已被清 0 —— 新行变成
+ *       「内存有、文件无、标记干净」，若这是停服前最后一次落盘就<b>永久丢行</b>；
+ *       {@code append} 与 {@code write} 交错还会把同一批行<b>写重复</b>（代理端/纸端
+ *       定时落盘是 {@code write}、玩家 {@code -a} 是 {@code append}，同一个文件必撞）；</li>
+ *   <li><b>代价</b>：磁盘 IO 期间其它线程的 {@code add} 会短暂等待。落盘频率低
+ *       （定时/停服/{@code -w}/{@code -a}）、文件小（默认 ≤500 行），用这点阻塞换
+ *       「文件内容顺序 = 快照顺序」这一强不变量是划算的；</li>
  *   <li><b>{@code -w} 原子替换</b>：先写 {@code *.tmp} 再 {@code ATOMIC_MOVE}，
  *       崩溃不会留下被截断一半的日志（这是唯一的副本）。</li>
  * </ol>
@@ -41,9 +46,6 @@ public final class HistoryStore {
     private int maxSize = 500;
     private boolean ignoreDups = true;
     private boolean recordEnabled = true;
-
-    /** 文件操作互斥锁（独立于状态锁：状态锁只保护内存结构）。 */
-    private final Object ioLock = new Object();
 
     public HistoryStore(Path file) {
         this.file = file;
@@ -136,86 +138,72 @@ public final class HistoryStore {
      * 「脏行集中在尾部」的不变量——否则 {@code dirtyCount} 无法表达，
      * 会像修复前那样把未落盘的行一并标成"已写入"，随后 {@code -a} 永远不会写出它们。
      */
-    public void read() {
+    public synchronized void read() {
         if (file == null || !Files.exists(file)) {
             return;
         }
         List<String> lines;
-        synchronized (ioLock) {
-            try {
-                lines = Files.readAllLines(file, StandardCharsets.UTF_8);
-            } catch (IOException e) {
-                throw new UncheckedIOException("Failed to read " + file, e);
-            }
+        try {
+            lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read " + file, e);
         }
-        synchronized (this) {
-            buffer.addAll(0, lines);
-            trim();
-            dirtyCount = Math.min(dirtyCount, buffer.size());
-        }
+        buffer.addAll(0, lines);
+        trim();
+        dirtyCount = Math.min(dirtyCount, buffer.size());
     }
 
     /**
      * -w：用缓冲区全量覆盖写入文件（原子替换：先写临时文件再移动）。
-     * <p>状态标记在锁内先置 0，磁盘写在 {@link #ioLock} 内、状态锁外；
-     * 失败时<b>加性</b>回滚（{@code += previous}）——用赋值会吞掉 IO 期间并发 {@code add} 的新行。</p>
+     * <p>快照、清脏标记、写盘<b>在同一临界区内</b>完成，因此文件的落盘顺序恒等于
+     * 快照顺序——这正是修掉「并发写把文件回退成旧快照、且新行被标成已写入」的关键。
+     * 失败时恢复原计数（此时监视器仍被持有、无人可改，加性回滚与赋值等价）。</p>
      */
-    public void write() {
+    public synchronized void write() {
         if (file == null) {
             return;
         }
-        List<String> snapshot;
-        int previous;
-        synchronized (this) {
-            snapshot = new ArrayList<>(buffer);
-            previous = dirtyCount;
-            dirtyCount = 0;
-        }
+        List<String> snapshot = new ArrayList<>(buffer);
+        int previous = dirtyCount;
+        dirtyCount = 0;
         try {
-            synchronized (ioLock) {
-                writeAtomically(snapshot);
-            }
+            writeAtomically(snapshot);
         } catch (IOException e) {
-            synchronized (this) {
-                dirtyCount += previous;
-            }
+            dirtyCount += previous;
             throw new UncheckedIOException("Failed to write " + file, e);
         }
     }
 
-    /** -a：将内存中未写入的行追加到文件。 */
-    public void append() {
+    /**
+     * -a：将内存中未写入的行追加到文件。
+     * <p>取 pending 与落盘同处一个临界区：否则它算出的 pending 可能已被并发的
+     * {@link #write()} 整份写入，随后再追加一遍 → 文件出现重复行。</p>
+     */
+    public synchronized void append() {
         if (file == null) {
             return;
         }
-        List<String> pending;
-        int previous;
-        synchronized (this) {
-            previous = dirtyCount;
-            pending = new ArrayList<>(buffer.subList(Math.max(0, buffer.size() - dirtyCount), buffer.size()));
-            dirtyCount = 0;
-        }
+        int previous = dirtyCount;
+        List<String> pending = new ArrayList<>(
+                buffer.subList(Math.max(0, buffer.size() - dirtyCount), buffer.size()));
+        dirtyCount = 0;
         if (pending.isEmpty()) {
             return;
         }
         try {
-            synchronized (ioLock) {
-                Path parent = file.getParent();
-                if (parent != null) {
-                    Files.createDirectories(parent);
-                }
-                Files.write(file, pending, StandardCharsets.UTF_8,
-                        StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE);
+            Path parent = file.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
             }
+            Files.write(file, pending, StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE);
         } catch (IOException e) {
-            synchronized (this) {
-                dirtyCount += previous;
-            }
+            dirtyCount += previous;
             throw new UncheckedIOException("Failed to append " + file, e);
         }
     }
 
-    /** 写临时文件后原子替换，避免「先截断再写」的崩溃窗口把整份日志毁掉。 */
+    /** 写临时文件后原子替换，避免「先截断再写」的崩溃窗口把整份日志毁掉。调用方必须已持有本对象监视器。 */
     private void writeAtomically(List<String> lines) throws IOException {
         Path parent = file.getParent();
         if (parent != null) {
