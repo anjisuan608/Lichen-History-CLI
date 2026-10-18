@@ -138,19 +138,32 @@ public final class HistoryStore {
      * 「脏行集中在尾部」的不变量——否则 {@code dirtyCount} 无法表达，
      * 会像修复前那样把未落盘的行一并标成"已写入"，随后 {@code -a} 永远不会写出它们。
      */
-    public synchronized void read() {
-        if (file == null || !Files.exists(file)) {
+    public void read() {
+        if (file == null) {
             return;
         }
+        // 读文件**不在监视器内**：write/append 的"快照+落盘同临界区"是必须的（否则会丢行/写重复），
+        // 但 read 只读不写、不涉及落盘顺序；把大文件 IO 放在锁外，
+        // 避免 `-r` 一个超大历史文件时把 add/resolve/snapshot 全部阻塞住。
         List<String> lines;
         try {
+            if (!Files.exists(file)) {
+                return;
+            }
             lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+            if (!lines.isEmpty() && lines.get(0).startsWith("\uFEFF")) {
+                // 记事本"另存为"会给 UTF-8 文件加 BOM，不清掉的话首条历史会多一个不可见字符，
+                // 导致 `!cmd` 前缀匹配失败。（写侧从不产 BOM，只有外部编辑才会引入）
+                lines.set(0, lines.get(0).substring(1));
+            }
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read " + file, e);
         }
-        buffer.addAll(0, lines);
-        trim();
-        dirtyCount = Math.min(dirtyCount, buffer.size());
+        synchronized (this) {
+            buffer.addAll(0, lines);
+            trim();
+            dirtyCount = Math.min(dirtyCount, buffer.size());
+        }
     }
 
     /**
@@ -195,6 +208,20 @@ public final class HistoryStore {
             if (parent != null) {
                 Files.createDirectories(parent);
             }
+            // 若上次追加被中断、文件末尾是**半行**（没有换行符），先补一个 '\n'，
+            // 否则这次的首行会和那半行拼成一行垃圾。`-w` 有 tmp+ATOMIC_MOVE 保护，`-a` 没有。
+            if (Files.exists(file) && Files.size(file) > 0) {
+                try (java.nio.channels.FileChannel ch = java.nio.channels.FileChannel.open(
+                        file, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+                    java.nio.ByteBuffer last = java.nio.ByteBuffer.allocate(1);
+                    ch.position(ch.size() - 1);
+                    ch.read(last);
+                    if (last.array()[0] != (byte) '\n') {
+                        ch.position(ch.size());
+                        ch.write(java.nio.ByteBuffer.wrap(new byte[]{'\n'}));
+                    }
+                }
+            }
             try (java.io.Writer w = Files.newBufferedWriter(file, StandardCharsets.UTF_8,
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND, StandardOpenOption.WRITE)) {
                 for (String line : pending) {
@@ -224,6 +251,11 @@ public final class HistoryStore {
                 w.write(line);
                 w.write('\n');
             }
+        }
+        try (java.nio.channels.FileChannel ch = java.nio.channels.FileChannel.open(tmp, StandardOpenOption.WRITE)) {
+            // ATOMIC_MOVE 只保证"要么整个新文件、要么整个旧文件"，**不保证内容已刷盘**；
+            // 掉电时可能整份历史回到上一版（这是唯一副本），所以 move 前先 force。
+            ch.force(true);
         }
         try {
             Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);

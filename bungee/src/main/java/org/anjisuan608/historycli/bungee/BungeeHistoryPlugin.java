@@ -91,8 +91,12 @@ public final class BungeeHistoryPlugin extends Plugin implements Listener {
     @Override
     public void onDisable() {
         if (store != null) {
-            store.write();
-            getLogger().info("Lichen History CLI (BungeeCord) history saved");
+            try {
+                store.write();
+                getLogger().info("Lichen History CLI (BungeeCord) history saved");
+            } catch (Throwable t) {
+                getLogger().warning("Failed to save history on disable: " + t);
+            }
         }
     }
 
@@ -253,9 +257,10 @@ public final class BungeeHistoryPlugin extends Plugin implements Listener {
             if (!permitted(sender, args, allowFull)) {
                 return java.util.Collections.emptyList();
             }
+            // 候选选项的单一事实源在 common 的 HistoryParser（增删子命令只改那一处）
             java.util.List<String> base = allowFull
-                    ? java.util.List.of("list", "-c", "-w", "-a", "-r", "-d", "reload", "help", "?", "!!")
-                    : java.util.List.of("-c", "-w", "-a", "-r", "help", "?");
+                    ? org.anjisuan608.historycli.HistoryParser.FULL_OPTIONS
+                    : org.anjisuan608.historycli.HistoryParser.PLAIN_OPTIONS;
             if (args.length == 0) {
                 return base;
             }
@@ -301,6 +306,12 @@ public final class BungeeHistoryPlugin extends Plugin implements Listener {
         // isExecutableCommand 只认"命令名"，不含参数；
         // getSender() 返回 Connection，只有 ProxiedPlayer 同时是 CommandSender（控制台不走这里）
         CommandSender sender = event.getSender() instanceof CommandSender cs ? cs : null;
+        // ChatEvent 继承 TargetedEvent：server→player 方向也会触发（聊天插件格式化输出等）。
+        // 那个方向 getSender() 为 null，而我们的命令 permission=""，恰好是
+        // isExecutableCommand(name, null) 返回 true 的条件 → 会被误判为"代理消费"而污染历史。
+        if (!(event.getSender() instanceof net.md_5.bungee.api.connection.ProxiedPlayer)) {
+            return;
+        }
         int space = body.indexOf(' ');
         String commandName = space > 0 ? body.substring(0, space) : body;
         boolean consumedByProxy = getProxy().getPluginManager().isExecutableCommand(commandName, sender);

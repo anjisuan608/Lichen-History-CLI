@@ -13,10 +13,9 @@ import java.util.concurrent.CompletableFuture;
  */
 public final class HistorySuggestions {
 
-    private static final List<String> FULL = List.of(
-            "list", "-c", "-w", "-a", "-r", "-d", "reload", "help", "?", "!!");
-    private static final List<String> PLAIN = List.of(
-            "-c", "-w", "-a", "-r", "help", "?");
+    // 候选选项的单一事实源在 HistoryParser（增删子命令只改那一处，见其 FULL_OPTIONS 注释）
+    private static final List<String> FULL = HistoryParser.FULL_OPTIONS;
+    private static final List<String> PLAIN = HistoryParser.PLAIN_OPTIONS;
 
     private HistorySuggestions() {
     }

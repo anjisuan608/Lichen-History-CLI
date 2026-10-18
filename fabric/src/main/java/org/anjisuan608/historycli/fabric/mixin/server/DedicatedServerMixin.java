@@ -22,14 +22,17 @@ public abstract class DedicatedServerMixin {
         if (msg == null || msg.isEmpty()) {
             return;
         }
-        if (!msg.startsWith("!")) {
+        String bare = org.anjisuan608.historycli.HistoryCommandHandler.stripLeadingSlash(msg);
+        if (!bare.startsWith("!")) {
+            // 先剥前导 `/` 再判并入史：控制台输入 `/!!` 是命令而非聊天，按原样入史会在
+            // 历史里留下字面量 `/!!`，与 NeoForge/Forge（其 reader 已剥斜杠）的口径也不一致。
             HistoryStore store = HistoryCliFabric.serverStore;
             if (store != null) {
-                store.add(msg);
+                store.add(bare);
             }
             return;
         }
-        String expanded = ServerHistoryExpander.expand(msg);
+        String expanded = ServerHistoryExpander.expand(bare);
         if (expanded == null) {
             HistoryCliFabric.LOGGER.warn("No matching history entry for '{}'", msg);
             ci.cancel();

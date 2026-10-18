@@ -24,7 +24,9 @@ import java.nio.file.Path;
 
 /**
  * Forge 主类：配置读取、服务端/集成服务器历史存储、命令事件录入。
- * <p>客户端事件统一交由 {@link ForgeClientEvents}，仅在客户端 dist 注册，
+ * <p>客户端事件统一交由 {@link org.anjisuan608.historycli.forge.client.ForgeClientEvents}，
+ * 仅在客户端 dist 注册（放 {@code .client} 子包正是为了让"包结构"成为第一道防线：
+ * 服务端可达的 {@code @Mod} 类里不该出现任何客户端类型），
  * 以免专用服务器解析客户端类型时 {@link NoClassDefFoundError}。</p>
  */
 @Mod("lichenhistorycli")

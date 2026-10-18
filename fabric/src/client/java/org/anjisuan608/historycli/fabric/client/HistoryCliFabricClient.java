@@ -29,13 +29,23 @@ public final class HistoryCliFabricClient implements ClientModInitializer {
         ClientCommandRegistrationCallback.EVENT.register(ClientHistoryCommand::register);
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             if (store != null) {
-                store.write();
+                // Fabric 的事件 invoker **不 catch** 订阅者异常：磁盘满/只读时
+                // UncheckedIOException 会直接崩掉客户端，而本该只是"正常断开"。
+                try {
+                    store.write();
+                } catch (Throwable t) {
+                    HistoryCliFabric.LOGGER.error("Failed to save client history on disconnect", t);
+                }
             }
         });
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             if (store != null) {
-                store.write();
+                try {
+                    store.write();
+                } catch (Throwable t) {
+                    HistoryCliFabric.LOGGER.error("Failed to save client history on shutdown", t);
+                }
             }
         }, "LichenHistoryCLI-Client-Save"));
     }

@@ -2,7 +2,6 @@ package org.anjisuan608.historycli.forge.client;
 
 import net.minecraftforge.common.MinecraftForge;
 import org.anjisuan608.historycli.HistoryCommandHandler;
-import org.anjisuan608.historycli.forge.ForgeClientEvents;
 import org.anjisuan608.historycli.forge.HistoryCliForge;
 
 /**
@@ -59,7 +58,8 @@ public final class ForgeClientHooks {
         }
         if (command.startsWith("!")) {
             if (!HistoryCommandHandler.isBangRequest(command)) {
-                // `!foo bar` 这种多词输入不视为展开请求：原样放行，并且自己记入历史
+                // `!foo bar` 这种多词输入不视为展开请求：**原样放行、不记入历史**
+                // （聊天内容属隐私，见 ForgeClientEvents 的说明；此处**不要**补 add）
                 return command;
             }
             String expanded = HistoryCliForge.clientStore.resolve(command);
@@ -77,8 +77,11 @@ public final class ForgeClientHooks {
                 }
                 return null;
             }
-            HistoryCliForge.clientStore.add(expanded);
-            return HistoryCommandHandler.stripLeadingSlash(expanded);
+            // 统一按「剥掉前导 /」的形态入史：历史里若同时留下 "/say hi" 与 "say hi" 两条，
+            // `!n` 序号会凭空漂移（ignoredups 只能挡住完全相同的串）
+            String clean = HistoryCommandHandler.stripLeadingSlash(expanded);
+            HistoryCliForge.clientStore.add(clean);
+            return clean;
         }
         HistoryCliForge.clientStore.add(command);
         return command;

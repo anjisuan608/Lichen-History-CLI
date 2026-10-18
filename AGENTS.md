@@ -394,14 +394,15 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
 - 需要 JDK 25 + Gradle（wrapper **9.8.0**，已加 `distributionSha256Sum` 校验；
   `networkTimeout=60000` + `retries=3`，避免大发行版在慢链路上 10 秒读超时直接失败）。
 - 运行目录：客户端 `run/Client`，服务端 `run/Server`（Fabric/NeoForge）。
-- `common` 单测 **59 个、0 失败**，覆盖：
+- `common` 单测 **63 个、0 失败**，覆盖：
   - `HistoryStore`：落盘 / `dirtyCount`（`-r` 不丢未落盘行、`delete`/`trim` 后的不变量）、
     **`-w` 临时文件 + 原子替换**、`!!` 自引用剔除、数字溢出、孤立 `!` 拒绝、连续去重、
     **并发 `write`/`append`（快照与写盘必须同临界区，否则会丢行/写重复行）**；
   - `HistoryCommandHandler`：reload 钩子（含失败回执）、IO 错误转译、递归防护
     （含 `historyxxx !n` 形态与深度上限）、畸形参数回报失败、存储未初始化；
   - `HistoryParser`（`HELP` 与 `PARSE_ERROR` 的区分）、`PermissionNode`（`use` 只读语义、通配）；
-  - JSON/TOML 配置 IO：注释与自加键保留、**行尾注释的空格与缩进**、类型错值回落默认。
+  - JSON/TOML 配置 IO：注释与自加键保留、**行尾注释的空格与缩进**、类型错值回落默认、
+    **损坏识别矩阵**（BOM 前缀 / 同行闭合的 `"""` / 多行数组 = 合法不判损坏；缺 `=` 的行 = 判损坏）；
 
 ---
 
@@ -437,11 +438,12 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
 6. **Bukkit 记录点在 `EventPriority.LOW`**：若其它插件在其之后才取消该命令，该条仍会入史。
 7. **崩溃不丢历史**：Velocity/BungeeCord **与 paper 版**每分钟定时异步落盘；
    **bukkit 版**仅在 `onDisable` 写盘，进程被 kill 会丢失本次会话新增记录。
-   mod 端：Fabric/NeoForge/Forge 停服时写盘（已加 try/catch，磁盘满不再中断停服序列）；
-   **Forge 客户端**在断线（`ClientPlayerNetworkEvent.LoggingOut`）与 JVM 关闭时均写盘，
-   与 NeoForge（LoggingOut+ClientStopped）/ Fabric（DISCONNECT）对齐。
-   代理端定时任务的 `write()` 也已加 try/catch（异常不冒进调度器）。
-   （`-w` 已改为"写临时文件 + 原子替换"，落盘过程中崩溃不会再截断整个日志。）
+   mod 端：Fabric/NeoForge/Forge 停服时写盘；客户端在**断线**（`LoggingOut` / `DISCONNECT`）
+   与 JVM 关闭时均写盘（Fabric/NeoForge/Forge 三端口径一致）。
+   **本模组的每一个写盘点都已 try/catch**（停服、断线、shutdown hook、定时任务、`onDisable`）——
+   磁盘满/只读只会出现一条 error 日志，不会崩游戏、不会中断停服、也不会让 Fabric 客户端在断线时崩溃
+   （Fabric 的事件 invoker **不 catch** 订阅者异常）。
+   （`-w` 已改为"写临时文件 + 原子替换 + move 前 fsync"；`-a` 会先补掉上次中断留下的半行。）
 8. **BungeeCord 控制台命令不入史**：该版本 API 未提供 `CommandEvent`，无钩子可用（见 §4）。
    同理，BungeeCord 侧的控制台 `!` 展开也不可用。
 9. **转发到后端的命令默认不入史**（`record_forwarded_commands=false`）：
@@ -467,7 +469,8 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
       收全 **6 条** 命令 → **errors 0**（我方 try/catch 兜底 0 触发）。
       > 这一轮同时修掉两个只有真机才会暴露的问题（见 §2「NeoForge/Forge 版本兼容」第 5、8 条）：
       > `@Mod` 类混入客户端类型 → 专用服务器构造 mod 类即崩；`gui.hud` → 26.1 编译不过。
-      > 测试装置：`boot-test5.ps1`（RCON 驱动）——**控制台 stdin 在本机连纯净原版都会失败**，
+      > 测试装置：RCON 驱动的服务端启动脚本（临时自建、不进仓库）——
+      > **控制台 stdin 在本机连纯净原版都会失败**，
       > 见上面「喂控制台的两条硬规矩」与 `MC_DEBUG_*` 开关。
     - ⬜ 其余端待实测：Fabric **客户端**、Forge/NeoForge **客户端**（配置屏与客户端 mixin，
       本轮把客户端代码整体搬进了 `*ClientHooks`，客户端 dist 尚未回归）、Velocity/Bungee 代理端。
@@ -629,6 +632,86 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
       （已在 Forge `26.1.2-64.1.3` 与 `26.3-66.0.6` 的 universal jar 里 javap 核实存在），
       与 NeoForge/Fabric 的断线写盘口径对齐；此前只有 JVM shutdown hook，
       「断线后停在主菜单、进程被 kill」会丢整段会话历史。
+
+15. **2026-10-19 全项目审计修复（P3 批）**，行为相关的几条：
+    - **注释与代码相反的两处已修正**（会诱导后人改坏）：
+      `ForgeClientHooks`/`NeoForgeClientHooks` 的多词 `!` 分支注释原本写"并且自己记入历史"，
+      实际**不记**（聊天属隐私，改对注释而非补 `add`）；`HistoryCliNeoForge` 类注释原本写
+      客户端事件用 `@EventBusSubscriber(Dist.CLIENT)`，照做会让 event bus 反射
+      `getDeclaredMethods()` 而在专用服务器上崩——已改成"实例注册"的真实说明。
+    - **Fabric 控制台 `/!!` 不再入史**：`DedicatedServerMixin` 先
+      `stripLeadingSlash` 再判 `!` 并入史，否则历史里会留下字面量 `/!!`
+      （NeoForge/Forge 的 reader 本就已剥斜杠）。
+    - **展开命中"带前导 / 的历史行"时统一按剥斜杠形态入史**（`ForgeClientHooks` /
+      `NeoForgeClientHooks`）：此前 `add(expanded)` 与 `return stripLeadingSlash(expanded)`
+      并存，历史里会同时出现 `/say hi` 与 `say hi` 两条，`!n` 序号凭空漂移。
+    - **`isOwnBangInvocation` 对多空格更稳健**：改为「首词之后 trim 再判 `!`」，
+      `historycliserver  !1` 也能识别；此前只剩深度上限兜底，而那是 ThreadLocal，
+      在 Velocity 的 `executeAsync` 异步端恒为 0。
+    - **`-w` 落盘前 fsync**：`ATOMIC_MOVE` 只保证"整个新/旧文件"，**不保证内容已刷盘**，
+      掉电时可能整份历史回到上一版；现改为 move 前 `FileChannel.force(true)`。
+      （注意 `FileChannel` 在 **`java.nio.channels`**，不是 `java.io`——本批曾踩过。）
+    - **`-r` 读历史时剥 UTF-8 BOM**：记事本"另存为"会给文件加 BOM，不清掉则首条历史
+      多一个不可见字符、`!cmd` 前缀匹配失败（写侧从不产 BOM）。
+    - 清理性：`mods.toml` 的 `loaderVersion` 从 MDK 残留的 `[41,)` 改为 `[1,)`；
+      根 `build.gradle` 的 release 注释补上 paper（并说明 sponge 保持 21）；
+      `ForgeClientEvents` 的 `/` 分支改为说明性 `return`（该分支不可达，`/` 走 `sendCommand`）；
+      两个 mixin 删除未使用的 `HistoryCliForge`/`HistoryCliNeoForge` import；
+      AGENTS 不再引用会随 Temp 清理消失的测试脚本名；删除空的 `api/` 目录。
+
+16. **2026-10-19 两项防御性重构**：
+    - **客户端事件类移入 `.client` 子包**（`git mv` 保留历史）：
+      `ForgeClientEvents` → `forge/.../client/`、`NeoForgeClientEvents` → `neoforge/.../client/`。
+      此前它们在**根包**里、只靠"只有 hooks 引用"来维持陷阱 8 不复发；现在**包结构本身**
+      就是第一道防线——`@Mod` 类所在的根包不再有客户端类，误 import 会立刻显得突兀。
+      `@Mod` 类只在 javadoc 里用**全限定名** `{@link ...client.ForgeClientEvents}` 引用
+      （javadoc 不进字节码），**没有**加 import：主类一旦 import 客户端类，
+      后人补代码时极易把客户端类型带进常量池。
+      回归判据仍同陷阱 8：`HistoryCliForge`/`HistoryCliNeoForge` 的常量池客户端类型计数**必须为 0**。
+    - **候选选项抽单一事实源**：`HistoryParser.FULL_OPTIONS` / `PLAIN_OPTIONS`。
+      此前 fabric/neoforge/forge（`HistorySuggestions`）、velocity、bungee **各手抄一份**，
+      增删子命令时漏改任一处就会让补全与 `parse` 的实际行为漂移。
+      现在五端全部引用 common 的常量（grep `HistoryParser.FULL_OPTIONS` 应命中 **5** 处：
+      HistorySuggestions / VelocityHistoryCommand / BungeeHistoryPlugin / BukkitHistoryPlugin
+      / SpongeHistoryPlugin；bukkit 与 paper 共用同一份源码）。
+
+17. **2026-10-19 审计修复（P1 + P2 批；四路审计 + 逐条复核后的结论）**：
+    - **修掉两个自引入的 TOML 回归**（`HistoryCliTomlConfigIO.parse` 重写）：
+      ① **BOM** —— `trim()` 吃不掉 `U+FEFF`，首行被削成裸 `﻿` → 整份判损坏 → **启动静默回落默认值**
+      （PowerShell 5 的 `Out-File`、记事本"UTF-8 with BOM"都会产出 BOM，用户一保存就中招）；
+      ② **同行闭合的 `key = """abc"""`** —— 此前只判 `contains`，多行标志永久置真，其后 section 全被吞却仍报成功。
+      现改为：入口先剥 BOM；多行定界符按**出现奇数次**判定（`"""` 与 `'''` 都支持）；
+      无 `=` 的行若处于**未闭合 `[` 的多行数组续行**中则豁免；真损坏时打
+      `Unparseable TOML line ...` 告警再返回空对象（此前零日志，现场无从排查）。
+      对应 4 个新用例见 §5。
+    - **Bukkit 历史路径真正解耦 CWD**：`getServer().getWorldContainer()` **默认就是 CWD**
+      （Paper javadoc：`new File("settings.world-container", ".")`），上一版改它等于没改，
+      且配了 `--world-container` 的服务器反而会让旧历史"凭空消失"。
+      改为 `getDataFolder().getAbsoluteFile().getParentFile().getParentFile()`
+      （`getDataFolder` 是绝对路径，反推 `<root>/plugins/<name>` 的上两级）。
+    - **Sponge 两处**：`reload()` 此前**恒返回 true**（`loadOrCreate` 对损坏返回空对象、不抛异常，
+      外层 try/catch 永不触发）→ 补"文件非空却解析为空"的判定（Bukkit/Bungee/Velocity 三端都正确，Sponge 是唯一遗漏）；
+      `canExecute()` 此前用**空参数**判权限 → 只被授予某子命令的玩家被**入口门整体拒掉**（连提示都没有），
+      改为返回 `true`、精确判定留在 `process()` 按真实参数做。
+    - **删除 Sponge `onExecute` 的 `!` 分支**（死代码 + 无权限门）：Sponge 只把已注册命令名交给
+      `ExecuteCommandEvent`，裸 `!!` 会被判未知命令、根本进不来。
+    - **Fabric 客户端断线写盘补 try/catch**：Fabric 的事件 invoker **不 catch** 订阅者异常，
+      磁盘满时会在 `Minecraft.disconnect` 流程里**直接崩客户端**——这是全项目唯一的真实崩溃路径。
+    - **NeoForge 客户端两个写盘点**（断线/停服）补 try/catch（此前只留 bus 层无上下文堆栈）。
+    - **4 处停服写盘补 try/catch**：bukkit `onDisable`、bungee `onDisable`、
+      velocity 的 shutdown hook 与 `onProxyShutdown` —— 与 mod 端口径对齐。
+    - **`common` 的 `execute()` 入史改用剥斜杠形态**（`store.add(command)` 而非 `store.add(expanded)`）：
+      客户端派发时 mixin 会再按剥斜杠形态记一次，两条并存会让 `!n` 序号凭空漂移；
+      与 `ForgeClientHooks`/`NeoForgeClientHooks` 的修复闭环。
+    - **`-r` 的文件 IO 移出监视器**：`read()` 只读不写、不涉及落盘顺序，
+      大文件 IO 放锁外可避免阻塞 `add`/`resolve`/`snapshot`
+      （**`write`/`append` 的 IO 必须留在锁内**——那正是 P1 修复点，别动）。
+    - **`-a` 先补半行**：上次追加被中断时文件末尾可能没有换行符，不补会与本次首行拼成一行垃圾；
+      用 `FileChannel` 读末字节、缺 `\n` 则补（`-w` 有 tmp+ATOMIC_MOVE 保护，`-a` 没有）。
+    - **Bungee `onChat` 过滤方向**：`ChatEvent` 继承 `TargetedEvent`，server→player 方向也会触发；
+      那个方向 `getSender()` 为 null，而我们的命令 `permission=""` 恰是
+      `isExecutableCommand(name, null)` 返回 true 的条件 → 会把服务器下发的文本误判为"代理消费"而污染历史。
+      现在非 `ProxiedPlayer` 直接返回。
 
 ---
 

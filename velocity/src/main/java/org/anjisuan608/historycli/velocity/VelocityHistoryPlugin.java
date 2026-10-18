@@ -61,7 +61,12 @@ public final class VelocityHistoryPlugin {
         }
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             if (store != null) {
-                store.write();
+                try {
+                    store.write();
+                } catch (Throwable t) {
+                    // hook 线程里的异常只落 stderr，不进 mod 日志；兜住并记录现场
+                    logger.error("Failed to save history on shutdown", t);
+                }
             }
         }, "LichenHistoryCLI-Proxy-Save"));
     }
@@ -95,8 +100,12 @@ public final class VelocityHistoryPlugin {
     @Subscribe
     public void onProxyShutdown(ProxyShutdownEvent event) {
         if (store != null) {
-            store.write();
-            logger.info("Lichen History CLI (Velocity) history saved");
+            try {
+                store.write();
+                logger.info("Lichen History CLI (Velocity) history saved");
+            } catch (Throwable t) {
+                logger.error("Failed to save history on shutdown", t);
+            }
         }
     }
 

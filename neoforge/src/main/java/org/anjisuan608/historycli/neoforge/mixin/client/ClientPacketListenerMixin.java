@@ -1,7 +1,6 @@
 package org.anjisuan608.historycli.neoforge.mixin.client;
 
 import net.minecraft.client.multiplayer.ClientPacketListener;
-import org.anjisuan608.historycli.neoforge.HistoryCliNeoForge;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;

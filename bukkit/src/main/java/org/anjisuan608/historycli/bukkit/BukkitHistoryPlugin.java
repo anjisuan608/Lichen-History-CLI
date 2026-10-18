@@ -40,10 +40,12 @@ public class BukkitHistoryPlugin extends JavaPlugin implements Listener {
         saveDefaultConfig();
         applyConfig();
 
-        // 相对路径会落在**进程 CWD**：换个工作目录启动（面板/守护进程/手动 java -jar）时
-        // 历史就会"凭空消失"。改用服务器根目录（world container），与 AGENTS §3 记载的
-        // <服务器目录>/local/historycli/command_history.log 保持一致。
-        File file = new File(getServer().getWorldContainer(), "local/historycli/command_history.log");
+        // 用 getDataFolder()（绝对路径）反推服务器根目录：它是 <root>/plugins/<本插件名>。
+        // 注意 getServer().getWorldContainer() **不能**用来解耦 CWD —— Paper 官方 javadoc 明确
+        // 它默认就是当前工作目录（CraftServer: new File("settings.world-container", "."))，
+        // 改了等于没改；而配了 --world-container 的服务器反而会让旧历史"凭空消失"。
+        File serverRoot = getDataFolder().getAbsoluteFile().getParentFile().getParentFile();
+        File file = new File(serverRoot, "local/historycli/command_history.log");
         file.getParentFile().mkdirs();
         store = new HistoryStore(file.toPath());
         applyStoreConfig();
@@ -116,8 +118,13 @@ public class BukkitHistoryPlugin extends JavaPlugin implements Listener {
     @Override
     public void onDisable() {
         if (store != null) {
-            store.write();
-            getLogger().info("Lichen History CLI (Bukkit) history saved");
+            // 兜住异常：否则停服时磁盘满/只读会打出裸堆栈，而不是干净的"已保存"或明确的失败
+            try {
+                store.write();
+                getLogger().info("Lichen History CLI (Bukkit) history saved");
+            } catch (Throwable t) {
+                getLogger().severe("Failed to save history on disable: " + t);
+            }
         }
     }
 
@@ -154,8 +161,8 @@ public class BukkitHistoryPlugin extends JavaPlugin implements Listener {
             return java.util.Collections.emptyList();
         }
         java.util.List<String> base = allowFull
-                ? java.util.List.of("list", "-c", "-w", "-a", "-r", "-d", "reload", "help", "?", "!!")
-                : java.util.List.of("-c", "-w", "-a", "-r", "help", "?");
+                ? org.anjisuan608.historycli.HistoryParser.FULL_OPTIONS
+                : org.anjisuan608.historycli.HistoryParser.PLAIN_OPTIONS;
         if (args.length == 0) {
             return base;
         }

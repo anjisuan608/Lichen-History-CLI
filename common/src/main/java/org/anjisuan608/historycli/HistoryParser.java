@@ -27,6 +27,19 @@ public final class HistoryParser {
         EMPTY          // 无参数
     }
 
+    /**
+     * 完整命令的候选选项 —— <b>单一事实源</b>。
+     * <p>各平台的 tab 补全（fabric/neoforge/forge 的 Brigadier、velocity/bungee 的
+     * {@code onTabComplete}）都引用这两个常量；增删子命令时只改这一处，
+     * 避免补全候选与 {@link #parse} 的实际行为漂移。</p>
+     */
+    public static final List<String> FULL_OPTIONS = List.of(
+            "list", "-c", "-w", "-a", "-r", "-d", "reload", "help", "?", "!!");
+
+    /** 普通命令（bash 标准子集，不含 {@code reload} / {@code -d} / {@code !} 系列）的候选选项。 */
+    public static final List<String> PLAIN_OPTIONS = List.of(
+            "-c", "-w", "-a", "-r", "help", "?");
+
     public static final class Result {
         public final Action action;
         public final int number;

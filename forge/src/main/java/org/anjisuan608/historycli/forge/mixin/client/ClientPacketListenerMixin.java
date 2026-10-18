@@ -1,7 +1,6 @@
 package org.anjisuan608.historycli.forge.mixin.client;
 
 import net.minecraft.client.multiplayer.ClientPacketListener;
-import org.anjisuan608.historycli.forge.HistoryCliForge;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -20,7 +19,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * </ul>
  * <p>结果就是：不加这个 mixin，Forge 客户端敲的 {@code /命令} 永远进不了历史，客户端历史恒为空。</p>
  *
- * <p>只拦 {@code sendCommand}：聊天侧（裸 {@code !!}）已由 {@link org.anjisuan608.historycli.forge.ForgeClientEvents}
+ * <p>只拦 {@code sendCommand}：聊天侧（裸 {@code !!}）已由 {@link org.anjisuan608.historycli.forge.client.ForgeClientEvents}
  * 的 {@code ClientChatEvent} 覆盖，两边都拦会重复处理。</p>
  */
 @Mixin(ClientPacketListener.class)

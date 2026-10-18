@@ -3,7 +3,6 @@ package org.anjisuan608.historycli.neoforge.client;
 import net.neoforged.neoforge.common.NeoForge;
 import org.anjisuan608.historycli.HistoryCommandHandler;
 import org.anjisuan608.historycli.neoforge.HistoryCliNeoForge;
-import org.anjisuan608.historycli.neoforge.NeoForgeClientEvents;
 
 /**
  * 客户端专用钩子：{@code @Mod} 类里所有会牵连客户端类型的东西都必须放在这里。
@@ -63,7 +62,8 @@ public final class NeoForgeClientHooks {
         }
         if (command.startsWith("!")) {
             if (!HistoryCommandHandler.isBangRequest(command)) {
-                // `!foo bar` 这种多词输入不视为展开请求：原样放行，并且自己记入历史
+                // `!foo bar` 这种多词输入不视为展开请求：**原样放行、不记入历史**
+                // （聊天内容属隐私；此处**不要**补 add，注释写错会诱导后人补出隐私回归）
                 return command;
             }
             String expanded = HistoryCliNeoForge.clientStore.resolve(command);
@@ -81,8 +81,11 @@ public final class NeoForgeClientHooks {
                 }
                 return null;
             }
-            HistoryCliNeoForge.clientStore.add(expanded);
-            return HistoryCommandHandler.stripLeadingSlash(expanded);
+            // 统一按「剥掉前导 /」的形态入史：历史里若同时留下 "/say hi" 与 "say hi" 两条，
+            // `!n` 序号会凭空漂移（ignoredups 只能挡住完全相同的串）
+            String clean = HistoryCommandHandler.stripLeadingSlash(expanded);
+            HistoryCliNeoForge.clientStore.add(clean);
+            return clean;
         }
         HistoryCliNeoForge.clientStore.add(command);
         return command;

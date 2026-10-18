@@ -171,4 +171,51 @@ class HistoryCliTomlConfigIOTest {
         assertTrue(Files.exists(file()));
         assertEquals(500, HistoryCliConfigIO.getInt(root, "client", "history_size", 0));
     }
+
+    // ====== 2026-10-19 审计回归：malformed 判定的三类误伤 + 一类真损坏 ======
+
+    /** BOM 曾让整份默认配置被判"损坏"→ 启动静默回落默认值（trim() 吃不掉 U+FEFF）。 */
+    @Test
+    void parseAcceptsBomPrefixedConfig() {
+        JsonObject root = HistoryCliTomlConfigIO.parse("\uFEFF" + HistoryCliTomlConfigIO.DEFAULT_CONFIG);
+        assertFalse(root.entrySet().isEmpty(), "带 BOM 的默认配置不应被判成损坏");
+        assertEquals(500, HistoryCliConfigIO.getInt(root, "client", "history_size", 0));
+    }
+
+    /** {@code key = """abc"""}（同行闭合）曾把多行标志永久置真，其后 section 与键值全被吞却仍报成功。 */
+    @Test
+    void parseAcceptsSingleLineTripleQuotedValue() {
+        String toml = ""
+                + "note = \"\"\"abc\"\"\"\n"
+                + "[server]\n"
+                + "history_size = 7\n";
+        JsonObject root = HistoryCliTomlConfigIO.parse(toml);
+        assertFalse(root.entrySet().isEmpty(), "同行闭合的三引号值不应让其后的 section 被吞");
+        assertEquals(7, HistoryCliConfigIO.getInt(root, "server", "history_size", 0));
+    }
+
+    /** 多行数组的续行没有 {@code =}，曾被判成"损坏"（合法 TOML）。 */
+    @Test
+    void parseAcceptsMultiLineArray() {
+        String toml = ""
+                + "tags = [\n"
+                + "  \"a\",\n"
+                + "  \"b\",\n"
+                + "]\n"
+                + "[server]\n"
+                + "history_size = 7\n";
+        JsonObject root = HistoryCliTomlConfigIO.parse(toml);
+        assertFalse(root.entrySet().isEmpty(), "多行数组是合法 TOML，不应判损坏");
+        assertEquals(7, HistoryCliConfigIO.getInt(root, "server", "history_size", 0));
+    }
+
+    /** 真正的损坏（无法识别的赋值行）必须返回空对象，交给平台层转成 config_reload_failed。 */
+    @Test
+    void parseTreatsUnparseableLineAsCorrupt() {
+        String toml = ""
+                + "[server]\n"
+                + "history_size 7\n";   // 缺 "="
+        JsonObject root = HistoryCliTomlConfigIO.parse(toml);
+        assertTrue(root.entrySet().isEmpty(), "无法识别的赋值行应判为损坏（返回空对象）");
+    }
 }

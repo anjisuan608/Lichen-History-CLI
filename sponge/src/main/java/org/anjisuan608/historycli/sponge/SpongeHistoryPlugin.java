@@ -160,22 +160,10 @@ public final class SpongeHistoryPlugin {
         String args = event.arguments();
         String line = (args == null || args.isEmpty()) ? name : name + " " + args;
 
-        if (line.charAt(0) == '!') {
-            String expanded = store.resolve(line);
-            if (expanded == null || expanded.startsWith("!")) {
-                // 无匹配，或历史里存的是字面量 `!!`（继续展开会无限递归）
-                event.setCancelled(true);
-                event.commandCause().audience()
-                        .sendMessage(text(tr(HistoryCommandHandler.Keys.NO_MATCH, line)));
-                return;
-            }
-            store.add(expanded);
-            String command = HistoryCommandHandler.stripLeadingSlash(expanded);
-            int space = command.indexOf(' ');
-            event.setCommand(space < 0 ? command : command.substring(0, space));
-            event.setArguments(space < 0 ? "" : command.substring(space + 1));
-            return;
-        }
+        // 这里不再尝试处理 `!` 开头的输入：Sponge 的 CommandManager 只会把**已注册命令名**
+        // 交给 ExecuteCommandEvent，裸 `!!` 会被判为未知命令、根本进不来（此前这段是死代码；
+        // 且它缺 permitted() 权限门——真被别的插件以 `!` 命令触发时会绕过 historycli.execute）。
+        // 控制台/玩家的 `!` 展开请用 `/historycliserver !` 形式（见 AGENTS §4 展开支持表）。
         store.add(line);
     }
 
@@ -228,10 +216,26 @@ public final class SpongeHistoryPlugin {
     private boolean reload() {
         try {
             JsonObject root = HistoryCliConfigIO.loadOrCreate(configFile);
+            // loadOrCreate 对损坏文件返回**空对象**、不抛异常，外层 try/catch 永不触发；
+            // Bukkit/Bungee/Velocity 三端都做了"文件非空却解析为空"的判定，Sponge 此前漏了 →
+            // 损坏时仍回 Config reloaded 且设置悄悄回落默认值（违反 AGENTS §3）。
+            if (root.entrySet().isEmpty() && configNonEmpty()) {
+                LOG.warning("Config file is corrupt, keeping current settings");
+                return false;
+            }
             applyConfig(root);
             return true;
         } catch (Exception e) {
             LOG.log(Level.WARNING, "Failed to reload config", e);
+            return false;
+        }
+    }
+
+    /** 配置文件是否存在且非空（用于区分"损坏"与"尚未创建"）。 */
+    private boolean configNonEmpty() {
+        try {
+            return Files.exists(configFile) && Files.size(configFile) > 0;
+        } catch (Exception e) {
             return false;
         }
     }
@@ -327,8 +331,8 @@ public final class SpongeHistoryPlugin {
             return List.of();
         }
         List<String> base = allowFull
-                ? List.of("list", "-c", "-w", "-a", "-r", "-d", "reload", "help", "?", "!!")
-                : List.of("-c", "-w", "-a", "-r", "help", "?");
+                ? HistoryParser.FULL_OPTIONS
+                : HistoryParser.PLAIN_OPTIONS;
         if (argv.length == 0) {
             return base;
         }
@@ -405,7 +409,10 @@ public final class SpongeHistoryPlugin {
 
         @Override
         public boolean canExecute(CommandCause cause) {
-            return permitted(cause, new String[0], allowFull);
+            // 这里**不能**用空参数判权限：parse(new String[0]) 恒为 LIST，会把只被授予某个
+            // 子命令（如 historycli.write）的玩家在**入口门**整体拒掉，连 NO_PERMISSION 提示都没有。
+            // 精确判定留在 process() 里按真实参数做（permitted(cause, args, allowFull)）。
+            return true;
         }
 
         @Override

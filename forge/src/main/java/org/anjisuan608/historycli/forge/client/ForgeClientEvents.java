@@ -1,6 +1,7 @@
-package org.anjisuan608.historycli.forge;
+package org.anjisuan608.historycli.forge.client;
 
 import net.minecraftforge.eventbus.api.listener.SubscribeEvent;
+import org.anjisuan608.historycli.forge.HistoryCliForge;
 
 /**
  * 客户端专属事件的订阅者。
@@ -30,7 +31,8 @@ public final class ForgeClientEvents {
      *       并抑制原聊天输入；</li>
      *   <li>多词的 {@code !} 开头输入（{@code !gg}、{@code !hello world}）或孤立 {@code !}
      *       → 那是<b>聊天</b>，原样放行，不能吞掉；</li>
-     *   <li>以 {@code /} 开头 → 仅记录，不干预；</li>
+     *   <li>以 {@code /} 开头 → 不经此事件（走 {@code sendCommand}，由
+ *       {@code ClientPacketListenerMixin} 记录），这里直接返回；</li>
      *   <li>普通聊天文本 → <b>不记录</b>。历史只存命令，聊天内容属隐私，不能混进来。</li>
      * </ul>
      */
@@ -56,8 +58,10 @@ public final class ForgeClientEvents {
             return;
         }
         if (message.startsWith("/")) {
-            // 记录命令（去掉前导 /），其余原样放行
-            org.anjisuan608.historycli.forge.client.ForgeClientHooks.interceptClientCommand(message.substring(1));
+            // 这里**进不来**：以 `/` 开头的输入走 `sendCommand`，`ClientChatEvent` 只由
+            // `sendChat` 触发；`/` 的记录由 ClientPacketListenerMixin 负责。
+            // 保留此分支只会误导读者，且一旦该事件将来对 `/` 生效就会与 mixin 双重记录。
+            return;
         }
     }
 

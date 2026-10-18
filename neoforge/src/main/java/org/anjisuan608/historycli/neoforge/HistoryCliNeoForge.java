@@ -23,8 +23,13 @@ import java.nio.file.Path;
 
 /**
  * NeoForge 主类：配置读取、服务端/集成服务器历史存储、命令事件录入。
- * <p>客户端事件统一在 {@link NeoForgeClientEvents}（{@code @EventBusSubscriber(Dist.CLIENT)}）中注册，
- * 以免专用服务器解析客户端类型时 {@link NoClassDefFoundError}。</p>
+ * <p>客户端事件在 {@link org.anjisuan608.historycli.neoforge.client.NeoForgeClientEvents} 中定义
+ * （放 {@code .client} 子包正是为了让"包结构"成为第一道防线：
+ * 服务端可达的 {@code @Mod} 类里不该出现任何客户端类型），
+ * 但<b>不用</b> {@code @EventBusSubscriber(Dist.CLIENT)}——那会让 event bus 反射
+ * {@code getDeclaredMethods()} 进而在专用服务器上解析客户端类型而崩；
+ * 改为在客户端分支里由 {@code NeoForgeClientHooks.registerClient(...)} 做<b>实例注册</b>，
+ * 专用服务器永不加载该类。</p>
  */
 @Mod("lichenhistorycli")
 public final class HistoryCliNeoForge {

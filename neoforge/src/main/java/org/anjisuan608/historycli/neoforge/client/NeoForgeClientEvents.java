@@ -1,9 +1,10 @@
-package org.anjisuan608.historycli.neoforge;
+package org.anjisuan608.historycli.neoforge.client;
 
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
 import net.neoforged.neoforge.client.event.lifecycle.ClientStoppedEvent;
+import org.anjisuan608.historycli.neoforge.HistoryCliNeoForge;
 
 /**
  * 客户端专属事件的订阅者。
@@ -33,16 +34,25 @@ public final class NeoForgeClientEvents {
     @SubscribeEvent
     public void onClientDisconnect(ClientPlayerNetworkEvent.LoggingOut event) {
         if (HistoryCliNeoForge.clientStore != null) {
-            HistoryCliNeoForge.clientStore.write();
-            HistoryCliNeoForge.LOGGER.info("Lichen History CLI (NeoForge client) history saved on disconnect");
+            // 兜住异常：否则只留 bus 层的无上下文堆栈，且磁盘失败时缺少本 mod 的错误现场
+            try {
+                HistoryCliNeoForge.clientStore.write();
+                HistoryCliNeoForge.LOGGER.info("Lichen History CLI (NeoForge client) history saved on disconnect");
+            } catch (Throwable t) {
+                HistoryCliNeoForge.LOGGER.error("Failed to save client history on disconnect", t);
+            }
         }
     }
 
     @SubscribeEvent
     public void onClientStopped(ClientStoppedEvent event) {
         if (HistoryCliNeoForge.clientStore != null) {
-            HistoryCliNeoForge.clientStore.write();
-            HistoryCliNeoForge.LOGGER.info("Lichen History CLI (NeoForge client) history saved on stop");
+            try {
+                HistoryCliNeoForge.clientStore.write();
+                HistoryCliNeoForge.LOGGER.info("Lichen History CLI (NeoForge client) history saved on stop");
+            } catch (Throwable t) {
+                HistoryCliNeoForge.LOGGER.error("Failed to save client history on stop", t);
+            }
         }
     }
 }

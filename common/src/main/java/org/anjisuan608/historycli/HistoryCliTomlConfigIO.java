@@ -75,6 +75,12 @@ public final class HistoryCliTomlConfigIO {
 
     /** 解析简单 TOML（根键值对 + 分节）为 JsonObject。 */
     static JsonObject parse(String toml) {
+        // 记事本"另存为"、PowerShell 5 的 Out-File 都会产出 UTF-8 BOM；
+        // Character.isWhitespace('\uFEFF') 为 false ⇒ trim() **吃不掉**它，
+        // 不先剥掉会让首行（通常是注释）被削成裸 "﻿"、判成损坏 → 整份配置静默回落默认值。
+        if (toml.startsWith("\uFEFF")) {
+            toml = toml.substring(1);
+        }
         JsonObject root = new JsonObject();
         Map<String, Map<String, String>> sections = new LinkedHashMap<>();
         String current = null;
@@ -82,30 +88,48 @@ public final class HistoryCliTomlConfigIO {
         // 之前这类行被静默跳过，平台层只看 entrySet().isEmpty() 就误判"加载成功"，
         // 于是 reload 回了 Config reloaded 而设置悄悄回落默认值（违反 AGENTS §3）。
         boolean malformed = false;
-        boolean inMultiline = false; // """ 块内的行不参与判定
+        String malformedLine = null;
+        // 多行字符串块：定界符出现**奇数次**才说明块未闭合。
+        // （此前只判 contains，`key = """abc"""` 这种同行闭合的合法写法会把 inMultiline 永久置真，
+        //  其后的 section 与全部键值被吞掉却仍报成功——比改动前更糟。）
+        String multilineDelim = null;
+        // 多行数组续行（无 = 的续行是合法 TOML）：用未闭合的 [ 计数豁免
+        int arrayDepth = 0;
         for (String rawLine : toml.split("\r?\n")) {
             String line = stripComment(rawLine).trim();
             if (line.isEmpty()) {
                 continue;
             }
-            if (inMultiline) {
-                if (line.contains("\"\"\"")) {
-                    inMultiline = false;
+            if (multilineDelim != null) {
+                if (hasOddOccurrences(line, multilineDelim)) {
+                    multilineDelim = null;
                 }
                 continue;
             }
             if (line.startsWith("[") && line.endsWith("]")) {
                 current = unquote(line.substring(1, line.length() - 1).trim());
+                arrayDepth = 0;
                 continue;
             }
             int eq = indexOfAssignment(line);
             if (eq <= 0) {
+                if (arrayDepth > 0) {
+                    // 多行数组/字面量的续行：合法 TOML，不判损坏
+                    arrayDepth = Math.max(0, arrayDepth + delta(line));
+                    continue;
+                }
                 malformed = true;
+                if (malformedLine == null) {
+                    malformedLine = line;
+                }
                 continue;
             }
-            if (line.contains("\"\"\"")) {
-                inMultiline = true;
+            if (hasOddOccurrences(line.substring(eq), "\"\"\"")) {
+                multilineDelim = "\"\"\"";
+            } else if (hasOddOccurrences(line.substring(eq), "'''")) {
+                multilineDelim = "'''";
             }
+            arrayDepth = Math.max(0, delta(line.substring(eq + 1)));
             String key = unquote(line.substring(0, eq).trim());
             String value = line.substring(eq + 1).trim();
             if (current == null) {
@@ -124,10 +148,33 @@ public final class HistoryCliTomlConfigIO {
         if (malformed) {
             // 返回空对象 ⇒ 平台层的 entrySet().isEmpty() 会把它当"损坏"处理：
             // reload 回 config_reload_failed、启动时保留当前设置并告警，
-            // 而不是拿默认值顶替还报"重载成功"。
+            // 而不是拿默认值顶替还报"重载成功"。必须打日志：否则现场无从排查。
+            LOG.log(Level.WARNING, "Unparseable TOML line in config, treating file as corrupt: " + malformedLine);
             return new JsonObject();
         }
         return root;
+    }
+
+    /** {@code delim} 在 {@code s} 中出现**奇数次** ⇒ 说明多行字符串块尚未闭合。 */
+    private static boolean hasOddOccurrences(String s, String delim) {
+        int n = 0;
+        for (int i = s.indexOf(delim); i >= 0; i = s.indexOf(delim, i + delim.length())) {
+            n++;
+        }
+        return n % 2 == 1;
+    }
+
+    /** 未闭合的 {@code [} 计数增量（用于多行数组续行判定）。 */
+    private static int delta(String s) {
+        int d = 0;
+        for (int i = 0; i < s.length(); i++) {
+            if (s.charAt(i) == '[') {
+                d++;
+            } else if (s.charAt(i) == ']') {
+                d--;
+            }
+        }
+        return d;
     }
 
     /**

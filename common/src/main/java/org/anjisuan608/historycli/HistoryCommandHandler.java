@@ -230,7 +230,9 @@ public abstract class HistoryCommandHandler {
         }
         EXPANSION_DEPTH.set(depth + 1);
         try {
-            store.add(expanded);
+            // 入史用**剥掉前导 /** 的形态：executeCommand 随后派发时，客户端 mixin
+            // 会再按剥斜杠形态记一次，两条并存会让 `!n` 序号凭空漂移。
+            store.add(command);
             executeCommand(command);
             return true;
         } finally {
@@ -247,10 +249,13 @@ public abstract class HistoryCommandHandler {
      */
     private static boolean isOwnBangInvocation(String command) {
         int firstSpace = command.indexOf(' ');
-        if (firstSpace <= 0 || firstSpace + 1 >= command.length()) {
+        if (firstSpace <= 0) {
             return false;
         }
-        if (command.charAt(firstSpace + 1) != '!') {
+        // 取首词之后的部分并 trim：`historycliserver  !1`（多空格）也要能识别，
+        // 否则只剩深度上限兜底——而那是 ThreadLocal，在 executeAsync 的异步端恒为 0。
+        String rest = command.substring(firstSpace + 1).trim();
+        if (rest.isEmpty() || rest.charAt(0) != '!') {
             return false;
         }
         return command.regionMatches(true, 0, "history", 0, "history".length());

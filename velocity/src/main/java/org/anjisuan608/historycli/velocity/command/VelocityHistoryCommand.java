@@ -26,9 +26,9 @@ import java.util.function.Supplier;
  */
 abstract class VelocityHistoryCommand implements SimpleCommand {
 
-    private static final List<String> FULL_CANDIDATES = List.of(
-            "list", "-c", "-w", "-a", "-r", "-d", "reload", "help", "?", "!!");
-    private static final List<String> PLAIN_CANDIDATES = List.of("-c", "-w", "-a", "-r", "help", "?");
+    // 候选选项的单一事实源在 common 的 HistoryParser（增删子命令只改那一处）
+    private static final List<String> FULL_CANDIDATES = HistoryParser.FULL_OPTIONS;
+    private static final List<String> PLAIN_CANDIDATES = HistoryParser.PLAIN_OPTIONS;
 
     private final HistoryStore store;
     private final boolean allowFull;
