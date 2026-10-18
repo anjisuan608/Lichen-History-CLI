@@ -1,0 +1,18 @@
+# 行尾与编码统一：charset=utf-8 / end_of_line=lf。
+#
+# 为什么需要它：本机全局 core.autocrlf=true，git 会在 checkout 时把仓库里的 LF
+# 转成 CRLF，于是工作区与仓库"看起来不一致"，git diff 还会反复刷
+# "LF will be replaced by CRLF the next time Git touches it" 的警告。
+# 仓库内容经核验（git cat-file blob 逐字节）**本就是 LF**，所以这条规则不会产生
+# 任何归一化 diff —— 它只是让工作区也稳定成 LF，跨平台协作时不再有行尾噪音。
+* text=auto eol=lf
+
+# Windows 批处理/PowerShell 必须是 CRLF 才能正常执行
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制资源不做任何转换
+*.png binary
+*.jar binary
+*.gz binary
+*.zip binary

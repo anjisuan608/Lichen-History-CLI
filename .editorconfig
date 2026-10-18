@@ -1,0 +1,23 @@
+# 编辑器配置：4 空格 / UTF-8 / LF / 行长 120 / 续行 8。
+# 只影响编辑器行为，不参与构建。
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+max_line_length = 120
+
+[*.java]
+indent_size = 4
+ij_continuation_indent_size = 8
+
+[*.{gradle,kts,properties,toml,json,yml,yaml,xml,md}]
+indent_size = 2
+
+[*.md]
+# Markdown 里两个行尾空格表示硬换行，不能被 trim
+trim_trailing_whitespace = false

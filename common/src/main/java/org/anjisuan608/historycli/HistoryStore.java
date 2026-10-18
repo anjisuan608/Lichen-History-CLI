@@ -188,6 +188,7 @@ public final class HistoryStore {
             dirtyCount += previous;
             throw new UncheckedIOException("Failed to write " + file, e);
         }
+        checkInvariant();
     }
 
     /**
@@ -241,6 +242,7 @@ public final class HistoryStore {
             dirtyCount += previous;
             throw new UncheckedIOException("Failed to append " + file, e);
         }
+        checkInvariant();
     }
 
     /** 写临时文件后原子替换，避免「先截断再写」的崩溃窗口把整份日志毁掉。调用方必须已持有本对象监视器。 */
@@ -302,6 +304,7 @@ public final class HistoryStore {
             dirtyCount--;
         }
         dirtyCount = Math.min(dirtyCount, buffer.size());
+        checkInvariant();
         return true;
     }
 
@@ -369,14 +372,28 @@ public final class HistoryStore {
         }
     }
 
+    /**
+     * 内部不变式：脏行数必须落在 {@code [0, buffer.size()]} 内。
+     *
+     * <p>用 {@code assert} 而非 if-throw：生产环境不加 {@code -ea} 时零开销，而 Gradle 测试默认开启断言 ——
+     * 于是这条此前只能靠单测间接兜底的不变量，现在每次写操作都会被实时校验。</p>
+     */
+    private void checkInvariant() {
+        assert dirtyCount >= 0 : "dirtyCount 为负: " + dirtyCount;
+        assert dirtyCount <= buffer.size()
+                : "dirtyCount=" + dirtyCount + " 超过缓冲区大小 " + buffer.size();
+    }
+
     private void trim() {
         if (maxSize <= 0 || buffer.size() <= maxSize) {
             dirtyCount = Math.min(dirtyCount, buffer.size());
+            checkInvariant();
             return;
         }
         int overflow = buffer.size() - maxSize;
         buffer.subList(0, overflow).clear();
         // 只从头部丢弃，未写行仍在尾部；计数不得超过剩余长度
         dirtyCount = Math.min(dirtyCount, buffer.size());
+        checkInvariant();
     }
 }
