@@ -156,6 +156,9 @@ public final class HistoryStore {
                 // 导致 `!cmd` 前缀匹配失败。（写侧从不产 BOM，只有外部编辑才会引入）
                 lines.set(0, lines.get(0).substring(1));
             }
+            // 空行（含 BOM 剥离后变空的首行、外部编辑留下的空行）不该进历史：
+            // `list` 会打出空白行，`!n` 会展开成一条空命令。
+            lines.removeIf(String::isEmpty);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read " + file, e);
         }
@@ -230,6 +233,10 @@ public final class HistoryStore {
                     w.write('\n');
                 }
             }
+            // 与 -w 保持同一档掉电保证：追加的行否则可能只停留在 OS 缓存里
+            try (java.nio.channels.FileChannel ch = java.nio.channels.FileChannel.open(file, StandardOpenOption.WRITE)) {
+                ch.force(true);
+            }
         } catch (IOException e) {
             dirtyCount += previous;
             throw new UncheckedIOException("Failed to append " + file, e);
@@ -262,6 +269,15 @@ public final class HistoryStore {
         } catch (AtomicMoveNotSupportedException e) {
             // 某些文件系统（跨盘/旧 NFS）不支持原子移动，退化为普通替换
             Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            // move 失败（如目标被同名目录占住）时清掉 tmp：内容仍在内存且 dirty 已回滚，
+            // 留个孤儿 command_history.log.tmp 只会让用户困惑。
+            try {
+                Files.deleteIfExists(tmp);
+            } catch (IOException ignored) {
+                // 清不掉也不致命：下次 -w 会 TRUNCATE_EXISTING 复用同一路径
+            }
+            throw e;
         }
     }
 

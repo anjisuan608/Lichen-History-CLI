@@ -84,7 +84,8 @@ public final class ForgeClientEvents {
      */
     @SubscribeEvent
     public void onLogout(net.minecraftforge.client.event.ClientPlayerNetworkEvent.LoggingOut event) {
-        if (HistoryCliForge.clientStore != null) {
+        // isDirty 短路：没有新行时不必做一次全量快照 + fsync
+        if (HistoryCliForge.clientStore != null && HistoryCliForge.clientStore.isDirty()) {
             try {
                 HistoryCliForge.clientStore.write();
                 HistoryCliForge.LOGGER.info("Lichen History CLI (Forge client) history saved on disconnect");

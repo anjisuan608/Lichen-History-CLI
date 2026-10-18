@@ -39,8 +39,13 @@ public final class NeoForgeClientHooks {
                 net.neoforged.neoforge.client.gui.IConfigScreenFactory.class,
                 (mc, parent) -> new HistoryConfigScreen(parent));
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            if (HistoryCliNeoForge.clientStore != null) {
-                HistoryCliNeoForge.clientStore.write();
+            // isDirty 短路：没有新行时不必做一次全量快照 + fsync（尤其关机路径）
+            if (HistoryCliNeoForge.clientStore != null && HistoryCliNeoForge.clientStore.isDirty()) {
+                try {
+                    HistoryCliNeoForge.clientStore.write();
+                } catch (Throwable t) {
+                    HistoryCliNeoForge.LOGGER.error("Failed to save client history on shutdown", t);
+                }
             }
         }, "LichenHistoryCLI-Client-Save"));
     }

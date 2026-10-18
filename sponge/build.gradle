@@ -33,8 +33,11 @@ dependencies {
 processResources {
     def version = project.version
     inputs.property 'version', version
+    // license 也要走 expand：此前是硬编码字面量，改 gradle.properties 的 mod_license 时
+    // sponge 元数据会漂移（fabric/forge/neoforge 都是 expand 的）
+    inputs.property 'mod_license', rootProject.mod_license
     filesMatching('META-INF/sponge_plugins.json') {
-        expand 'pluginVersion': version
+        expand 'pluginVersion': version, 'modLicense': rootProject.mod_license
     }
     from(rootProject.file('lang'))
     from(rootProject.file('LICENSE'))

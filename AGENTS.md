@@ -394,10 +394,11 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
 - 需要 JDK 25 + Gradle（wrapper **9.8.0**，已加 `distributionSha256Sum` 校验；
   `networkTimeout=60000` + `retries=3`，避免大发行版在慢链路上 10 秒读超时直接失败）。
 - 运行目录：客户端 `run/Client`，服务端 `run/Server`（Fabric/NeoForge）。
-- `common` 单测 **63 个、0 失败**，覆盖：
+- `common` 单测 **69 个、0 失败**，覆盖：
   - `HistoryStore`：落盘 / `dirtyCount`（`-r` 不丢未落盘行、`delete`/`trim` 后的不变量）、
     **`-w` 临时文件 + 原子替换**、`!!` 自引用剔除、数字溢出、孤立 `!` 拒绝、连续去重、
-    **并发 `write`/`append`（快照与写盘必须同临界区，否则会丢行/写重复行）**；
+    **并发 `write`/`append`（快照与写盘必须同临界区，否则会丢行/写重复行）**、
+    **BOM/空行剥离**、**LF-only 落盘（字节级断言无 `\r`）**、**`-a` 补半行**；
   - `HistoryCommandHandler`：reload 钩子（含失败回执）、IO 错误转译、递归防护
     （含 `historyxxx !n` 形态与深度上限）、畸形参数回报失败、存储未初始化；
   - `HistoryParser`（`HELP` 与 `PARSE_ERROR` 的区分）、`PermissionNode`（`use` 只读语义、通配）；
@@ -712,6 +713,33 @@ Java 下限不变：26.x 的 paper-api 类文件是 major 69（Java 25），故 
       那个方向 `getSender()` 为 null，而我们的命令 `permission=""` 恰是
       `isExecutableCommand(name, null)` 返回 true 的条件 → 会把服务器下发的文本误判为"代理消费"而污染历史。
       现在非 `ProxiedPlayer` 直接返回。
+
+18. **2026-10-19 全项目审计修复（P3 批）**：
+    - **`common`**：`append()` 落盘后同样 `force(true)`（与 `-w` 的掉电保证对齐）；
+      `writeAtomically()` move 失败时 `deleteIfExists(tmp)` 再抛（内容仍在内存且 dirty 已回滚，
+      留个孤儿 `*.tmp` 只会让用户困惑）；`handle()` 的 `store()` 判空挪进 try（集成服务器的
+      延迟初始化若抛异常同样要兜住）；`internal_error` 改传 `safeDetail(e)`
+      （类名 + 单行截断 + `%`→`_`：mod 端走 `Component.translatable`，消息里的裸 `%` 会被内部
+      `String.format` 当格式说明而抛 `IllegalFormatException`）；`isOwnBangInvocation` 改用
+      `Character.isWhitespace` 切首词（`historycliserver\t!1` 也能识别）；`read()` 过滤空行
+      （含 BOM 剥离后变空的首行——否则 `list` 打空行、`!n` 展开成空命令）。
+    - **三端客户端命令也加 `run()` 兜底**（`ForgeClientCommand`/`NeoForgeClientCommand`/
+      `ClientHistoryCommand`）：此前只有服务端兜了，客户端异常同样会被吞成无堆栈的 command.failed。
+    - **三端客户端 shutdown hook 兜底 + `isDirty` 短路**（`ForgeClientHooks`/`NeoForgeClientHooks`），
+      客户端断线/停机写盘点（Forge `onLogout`、NeoForge 两个、Fabric `DISCONNECT`）同样加 `isDirty` 短路：
+      没有新行时不做全量快照 + fsync。
+    - **`neoforge.mods.toml` 删掉冗余 `logoFile`**（与 `iconFile` 同值，NeoForge 只认 `iconFile`）。
+    - **`sponge_plugins.json` 的 `license` 改走 expand**（`${modLicense}` + `inputs.property`）：
+      此前是硬编码字面量，改 `gradle.properties` 的 `mod_license` 时 sponge 元数据会漂移
+      （fabric/forge/neoforge 都是 expand 的）。产物已验证展开为 `LGPL-3.0-or-later`。
+    - **Velocity `permitted` 补注释**说明"刻意不复刻 `!allowFull` 前置"：普通命令由
+      `dispatch` 的 `!allowFull` 分支拒绝并回更贴切的 `UNSUPPORTED_PLAIN`（无安全影响）。
+    - **繁中 README 补 `(Quilt)`**（与英文/简中一致）；本地删除 7 个 IDE `bin/` 残留
+      （内含重构前的陈旧 mixin 配置，会误导 grep）与空的 `fabric/src/main/resources/assets`。
+    - **测试 63 → 69**：新增 BOM/空行剥离、LF-only 落盘（字节级断言无 `\r`）、`-a` 补半行、
+      `internal_error` 兜底、多空格自引用行拒绝、候选选项可解析性（`-d` 单独出现判 PARSE_ERROR 属正确行为）。
+    - **刻意不做**（已评估）：把"多余参数"改判 `PARSE_ERROR` —— 平台层 greedyString 可能传入
+      空串或多余项，误伤面大于收益，保持按首词解析。
 
 ---
 

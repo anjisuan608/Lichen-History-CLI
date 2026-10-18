@@ -13,7 +13,6 @@ description = "Bash-like history command management for Minecraft."
 authors = "${mod_authors}"
 credits = "${mod_credits}"
 iconFile = "icon.png"
-logoFile = "icon.png"
 
 # 不声明依赖的话本 mod 会被加载到任意 Minecraft/NeoForge 版本上。
 # 声明范围 = minecraft_version_range（MC 侧 [26.1,27)）+ neo_version_min（loader 侧取 26.1 线下限）；

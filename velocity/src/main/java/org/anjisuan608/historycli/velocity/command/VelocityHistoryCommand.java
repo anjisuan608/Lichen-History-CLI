@@ -80,6 +80,12 @@ abstract class VelocityHistoryCommand implements SimpleCommand {
         return permitted(invocation.source(), invocation.arguments());
     }
 
+    /**
+     * 这里**刻意**不复刻 Bukkit/Sponge/Bungee 的 `!allowFull` 前置拦截：
+     * 普通命令走到完整子命令时，由 {@code HistoryCommandHandler.dispatch} 的 `!allowFull` 分支拒绝，
+     * 用户得到的是更贴切的 UNSUPPORTED_PLAIN 而非 NO_PERMISSION。无安全影响：普通命令的补全候选
+     * （PLAIN_CANDIDATES）本就不含 list/-d/reload，EXECUTE 也在 common 层被拒。
+     */
     private boolean permitted(CommandSource source, String[] args) {
         HistoryParser.Result result = HistoryParser.parse(args);
         HistoryParser.Action action = result == null ? HistoryParser.Action.LIST : result.action;

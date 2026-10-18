@@ -50,15 +50,24 @@ public final class ClientHistoryCommand {
         return builder
                 .executes(ctx -> {
                     handler.setSource(ctx.getSource());
-                    return handler.handle(new String[0]) ? 1 : 0;
+                    return run(handler, new String[0]);
                 })
                 .then(ClientCommands.argument("rest", StringArgumentType.greedyString())
                         .suggests(org.anjisuan608.historycli.HistorySuggestions.suggest(handler.allowFull()))
                         .executes(ctx -> {
                             handler.setSource(ctx.getSource());
-                            return handler.handle(HistoryParser.split(StringArgumentType.getString(ctx, "rest")).toArray(new String[0]))
-                                    ? 1 : 0;
+                            return run(handler, HistoryParser.split(StringArgumentType.getString(ctx, "rest")).toArray(new String[0]));
                         }));
+    }
+
+    /** 客户端命令同样要兜住异常：否则被原版吞成 command.failed 且不留堆栈（与服务端同病）。 */
+    private static int run(ClientHandler handler, String[] args) {
+        try {
+            return handler.handle(args) ? 1 : 0;
+        } catch (Throwable t) {
+            HistoryCliFabric.LOGGER.error("[lichenhistorycli] client command threw: {}", String.join(" ", args), t);
+            return 0;
+        }
     }
 
     private static final class ClientHandler extends HistoryCommandHandler {

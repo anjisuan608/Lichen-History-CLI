@@ -6,7 +6,7 @@
 
 Lichen History CLI 把熟悉的 **bash `history` 指令** 帶進 Minecraft —— 既能作為模組，也能作為伺服器外掛。無論你是伺服器維護者、管理員，還是需要反覆執行大量指令的地圖作者，你輸入過的指令都只差幾下按鍵：瀏覽它、搜尋它、重新執行它。歷史紀錄保存在專案**自己**的日誌檔裡，原版的 `command_history.txt` 與上下鍵記憶體歷史完全不受影響。
 
-**支援平台** —— *模組*：**Fabric**、**NeoForge**、**Forge** · *伺服器外掛*：**CraftBukkit**、**Spigot**、**Paper**、**Purpur**、**Leaves**、**Leaf**、**Folia**、**Sponge** · *代理端*：**Velocity**、**BungeeCord(Waterfall)**。<!-- 具體版本範圍見下方[支援平台表](#-支援平台)。-->
+**支援平台** —— *模組*：**Fabric(Quilt)**、**NeoForge**、**Forge** · *伺服器外掛*：**CraftBukkit**、**Spigot**、**Paper**、**Purpur**、**Leaves**、**Leaf**、**Folia**、**Sponge** · *代理端*：**Velocity**、**BungeeCord(Waterfall)**。<!-- 具體版本範圍見下方[支援平台表](#-支援平台)。-->
 
 ## ✨ 特色
 

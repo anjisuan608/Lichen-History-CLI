@@ -35,8 +35,14 @@ public final class ForgeClientHooks {
         MinecraftForge.EVENT_BUS.register(ForgeClientEvents.INSTANCE);
         MinecraftForge.registerConfigScreen(parent -> new HistoryConfigScreen(parent));
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            if (HistoryCliForge.clientStore != null) {
-                HistoryCliForge.clientStore.write();
+            // isDirty 短路：没有新行时不必做一次全量快照 + fsync（尤其关机路径）
+            if (HistoryCliForge.clientStore != null && HistoryCliForge.clientStore.isDirty()) {
+                try {
+                    HistoryCliForge.clientStore.write();
+                } catch (Throwable t) {
+                    // hook 线程里的异常只落 stderr，不进 mod 日志；兜住并记录现场
+                    HistoryCliForge.LOGGER.error("Failed to save client history on shutdown", t);
+                }
             }
         }, "LichenHistoryCLI-Client-Save"));
     }

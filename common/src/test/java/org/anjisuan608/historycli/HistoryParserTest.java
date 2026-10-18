@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 class HistoryParserTest {
@@ -74,5 +76,27 @@ class HistoryParserTest {
         assertEquals("say hi", HistoryCommandHandler.stripLeadingSlash("say hi"));
         assertEquals("/say hi", HistoryCommandHandler.stripLeadingSlash("//say hi"));
         assertNull(HistoryCommandHandler.stripLeadingSlash(null));
+    }
+
+    @Test
+    void everyCandidateOptionIsParseable() {
+        // 候选选项的单一事实源（FULL_OPTIONS/PLAIN_OPTIONS）里的每一项都必须真能被 parse 识别，
+        // 否则补全会推荐出被判成 PARSE_ERROR 的无意义选项（五端共用这一份常量）
+        for (String option : HistoryParser.FULL_OPTIONS) {
+            if ("-d".equals(option)) {
+                // -d 必须跟编号，单独出现判 PARSE_ERROR 是**正确**行为，单独断言它
+                assertEquals(HistoryParser.Action.PARSE_ERROR, HistoryParser.parse(new String[]{"-d"}).action,
+                        "-d 缺编号时应判 PARSE_ERROR");
+                continue;
+            }
+            HistoryParser.Result r = HistoryParser.parse(new String[]{option});
+            assertNotNull(r, "FULL_OPTIONS 中的 '" + option + "' 未被 parse 识别");
+            assertFalse(r.action == HistoryParser.Action.PARSE_ERROR,
+                    "FULL_OPTIONS 中的 '" + option + "' 被判成 PARSE_ERROR");
+        }
+        for (String option : HistoryParser.PLAIN_OPTIONS) {
+            assertFalse(HistoryParser.parse(new String[]{option}).action == HistoryParser.Action.PARSE_ERROR,
+                    "PLAIN_OPTIONS 中的 '" + option + "' 被判成 PARSE_ERROR");
+        }
     }
 }

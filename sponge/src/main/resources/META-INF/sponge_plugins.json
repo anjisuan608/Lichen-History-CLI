@@ -3,7 +3,7 @@
     "name": "java_plain",
     "version": "1.0"
   },
-  "license": "LGPL-3.0-or-later",
+  "license": "${modLicense}",
   "plugins": [
     {
       "id": "lichenhistorycli",

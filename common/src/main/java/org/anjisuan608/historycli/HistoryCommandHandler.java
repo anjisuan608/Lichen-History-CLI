@@ -106,11 +106,12 @@ public abstract class HistoryCommandHandler {
      *         这样命令方块/自动化（{@code /execute}）能感知失败，而不是永远得到"成功"。
      */
     public boolean handle(String[] args) {
-        if (store() == null) {
-            sendError(Keys.STORE_NOT_INIT);
-            return false;
-        }
         try {
+            // store() 可能被子类覆盖成延迟初始化（集成服务器），它抛的异常同样要兜住
+            if (store() == null) {
+                sendError(Keys.STORE_NOT_INIT);
+                return false;
+            }
             // parse 也放进 try：args 含 null 元素时它会 NPE，那是 RuntimeException，
             // 下面的 catch 兜住它，避免逃逸到平台命令层变成无堆栈的 command.failed。
             HistoryParser.Result result = HistoryParser.parse(args);
@@ -125,9 +126,27 @@ public abstract class HistoryCommandHandler {
         } catch (RuntimeException e) {
             // 任何未受检异常都会被原版吞成 command.failed 且不留堆栈（AGENTS §6），
             // 必须在这里兜住并回执，否则用户和日志都拿不到现场。
-            sendError(Keys.INTERNAL_ERROR, String.valueOf(e));
+            sendError(Keys.INTERNAL_ERROR, safeDetail(e));
             return false;
         }
+    }
+
+    /**
+     * 异常的可展示细节：类名 + 单行截断的 message。
+     * <p>不能直接塞 {@code toString()}：mod 端走 {@code Component.translatable}，
+     * 消息里的裸 {@code %} 会被内部 {@code String.format} 当格式说明而抛
+     * {@link java.util.IllegalFormatException}；换行也会刷屏。</p>
+     */
+    private static String safeDetail(Throwable t) {
+        String msg = t.getMessage();
+        if (msg == null || msg.isEmpty()) {
+            return t.getClass().getSimpleName();
+        }
+        String oneLine = msg.replace('\r', ' ').replace('\n', ' ').replace('%', '_');
+        if (oneLine.length() > 120) {
+            oneLine = oneLine.substring(0, 120) + "...";
+        }
+        return t.getClass().getSimpleName() + ": " + oneLine;
     }
 
     private boolean dispatch(HistoryParser.Result result) {
@@ -248,12 +267,18 @@ public abstract class HistoryCommandHandler {
      * 这样 {@code msg !bob} 这类首参带 {@code !} 的正常命令不会被误伤。</p>
      */
     private static boolean isOwnBangInvocation(String command) {
-        int firstSpace = command.indexOf(' ');
+        // 用任意空白切分（不只是空格）：`historycliserver\t!1` 这类 Tab 分隔也要能识别，
+        // 否则只剩深度上限兜底——而那是 ThreadLocal，在 executeAsync 的异步端恒为 0。
+        int firstSpace = -1;
+        for (int i = 0; i < command.length(); i++) {
+            if (Character.isWhitespace(command.charAt(i))) {
+                firstSpace = i;
+                break;
+            }
+        }
         if (firstSpace <= 0) {
             return false;
         }
-        // 取首词之后的部分并 trim：`historycliserver  !1`（多空格）也要能识别，
-        // 否则只剩深度上限兜底——而那是 ThreadLocal，在 executeAsync 的异步端恒为 0。
         String rest = command.substring(firstSpace + 1).trim();
         if (rest.isEmpty() || rest.charAt(0) != '!') {
             return false;

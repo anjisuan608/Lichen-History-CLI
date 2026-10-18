@@ -319,4 +319,25 @@ class HistoryCommandHandlerTest {
         assertEquals(java.util.List.of("/tp @s 0 100 0", "say hello", "summon zombie"), commands);
         assertTrue(plainRows.isEmpty(), "覆盖了带序号的重载后不应再走无序号路径");
     }
+
+    @Test
+    void internalErrorOnNullArg() {
+        FakeHandler h = new FakeHandler(store(), true);
+        // args 含 null 元素时 HistoryParser.parse 会 NPE —— 必须被 catch(RuntimeException) 兜住，
+        // 回 internal_error 而不是逃逸成无堆栈的 command.failed（AGENTS §6）
+        assertFalse(h.handle(new String[]{null}));
+        assertTrue(h.errors.stream().anyMatch(e -> e.startsWith(HistoryCommandHandler.Keys.INTERNAL_ERROR)),
+                "应收到 internal_error 回执，实际 errors=" + h.errors);
+    }
+
+    @Test
+    void refusesMultiSpaceBangInvocation() {
+        HistoryStore store = store();
+        // 末尾是"本命令 + bang"的自引用行（多空格形态）；`!!` 展开到它时必须拒绝，
+        // 否则会派发回本命令再次展开。此前 charAt(firstSpace+1) 只认单空格，会漏判。
+        store.add("historycliserver  !1");
+        FakeHandler h = new FakeHandler(store, true);
+        assertFalse(h.handle(new String[]{"!!"}));
+        assertTrue(h.executed.isEmpty(), "自引用行不应被执行，实际 executed=" + h.executed);
+    }
 }

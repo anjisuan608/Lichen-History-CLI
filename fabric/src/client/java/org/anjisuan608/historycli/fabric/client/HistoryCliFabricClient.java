@@ -28,7 +28,8 @@ public final class HistoryCliFabricClient implements ClientModInitializer {
 
         ClientCommandRegistrationCallback.EVENT.register(ClientHistoryCommand::register);
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
-            if (store != null) {
+            // isDirty 短路：没有新行时不必做一次全量快照 + fsync
+            if (store != null && store.isDirty()) {
                 // Fabric 的事件 invoker **不 catch** 订阅者异常：磁盘满/只读时
                 // UncheckedIOException 会直接崩掉客户端，而本该只是"正常断开"。
                 try {

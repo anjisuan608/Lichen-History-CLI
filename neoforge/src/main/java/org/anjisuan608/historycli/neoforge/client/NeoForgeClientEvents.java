@@ -33,7 +33,8 @@ public final class NeoForgeClientEvents {
 
     @SubscribeEvent
     public void onClientDisconnect(ClientPlayerNetworkEvent.LoggingOut event) {
-        if (HistoryCliNeoForge.clientStore != null) {
+        // isDirty 短路：没有新行时不必做一次全量快照 + fsync
+        if (HistoryCliNeoForge.clientStore != null && HistoryCliNeoForge.clientStore.isDirty()) {
             // 兜住异常：否则只留 bus 层的无上下文堆栈，且磁盘失败时缺少本 mod 的错误现场
             try {
                 HistoryCliNeoForge.clientStore.write();
@@ -46,7 +47,8 @@ public final class NeoForgeClientEvents {
 
     @SubscribeEvent
     public void onClientStopped(ClientStoppedEvent event) {
-        if (HistoryCliNeoForge.clientStore != null) {
+        // isDirty 短路：没有新行时不必做一次全量快照 + fsync
+        if (HistoryCliNeoForge.clientStore != null && HistoryCliNeoForge.clientStore.isDirty()) {
             try {
                 HistoryCliNeoForge.clientStore.write();
                 HistoryCliNeoForge.LOGGER.info("Lichen History CLI (NeoForge client) history saved on stop");

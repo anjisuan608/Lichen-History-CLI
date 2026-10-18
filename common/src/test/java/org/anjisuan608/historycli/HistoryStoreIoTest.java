@@ -245,4 +245,38 @@ class HistoryStoreIoTest {
         assertEquals(onDisk.size(), new HashSet<>(onDisk).size(), "不应出现重复行");
         assertFalse(store.isDirty(), "两个线程最后一步都是落盘，不应残留未写行");
     }
+
+    @Test
+    void readStripsBomAndEmptyLines() throws IOException {
+        // 记事本"另存为"会带 BOM；BOM 剥离后变空的首行、以及外部编辑留下的空行都不该进历史
+        Files.writeString(file(), "\uFEFFalpha\n\nbeta\n", StandardCharsets.UTF_8);
+        HistoryStore store = new HistoryStore(file());
+        store.setMaxSize(0);
+        store.read();
+        assertEquals(List.of("alpha", "beta"), store.snapshot(), "BOM 与空行都不该进历史");
+    }
+
+    @Test
+    void writeUsesLfOnly() throws IOException {
+        HistoryStore store = new HistoryStore(file());
+        store.setMaxSize(0);
+        store.add("alpha");
+        store.add("beta");
+        store.write();
+        String onDisk = new String(Files.readAllBytes(file()), StandardCharsets.UTF_8);
+        assertEquals(-1, onDisk.indexOf('\r'),
+                "落盘必须 LF-only：Files.write(Iterable) 会用平台行分隔符，Windows 上产 CRLF");
+    }
+
+    @Test
+    void appendRepairsTruncatedLastLine() throws IOException {
+        // 上次追加被中断：末尾是半行（没有换行符）。-a 必须先补 \n，否则新首行会与它拼成一行垃圾
+        Files.writeString(file(), "alpha\npartial", StandardCharsets.UTF_8);
+        HistoryStore store = new HistoryStore(file());
+        store.setMaxSize(0);
+        store.read();
+        store.add("beta");
+        store.append();
+        assertEquals(List.of("alpha", "partial", "beta"), lines(file()), "半行应被补成独立一行");
+    }
 }
