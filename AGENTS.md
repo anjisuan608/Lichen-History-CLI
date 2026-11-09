@@ -83,10 +83,13 @@ gson 在 Paper/Velocity/BungeeCord 运行时均由平台提供，brigadier 只�
 ### 版本三态
 
 `build.gradle` 的 `resolveVersion()`：
-- 本地构建 → `26-SNAPSHOT`
-- GitHub Actions push → `26-dev-<sha 前 7 位>`（分隔符是 `-` 不是 `.`）
-- GitHub Actions pull_request → `26-pr-<sha 前 7 位>`（与 push 区分，分隔符同样是 `-`）
-- tag 发版 → `26-<标签名去前导 v>`
+- 前缀 = **构建时的年份后两位**（2026 → `26-`，2027 → `27-`），四态统一，不再硬编码。
+  前缀必须保持"数字开头"：Forge/NeoForge 的 `mods.toml` 用 `VALID_VERSION = ^\d+.*` 校验
+  `version`，不匹配会抛 `Illegal version number specified` 导致整个 mod 加载失败。
+- 本地构建 → `<年>-SNAPSHOT`
+- GitHub Actions push → `<年>-dev-<sha 前 7 位>`（分隔符是 `-` 不是 `.`）
+- GitHub Actions pull_request → `<年>-pr-<sha 前 7 位>`（与 push 区分，分隔符同样是 `-`）
+- tag 发版 → `<年>-<标签名去前导 v>`
 
 ### 构建版本 vs 最低版本（`gradle.properties`）
 

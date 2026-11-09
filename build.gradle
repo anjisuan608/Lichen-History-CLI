@@ -9,6 +9,12 @@ def resolveVersion = {
     String gitRef = System.getenv('GITHUB_REF')
     String gitSha = System.getenv('GITHUB_SHA')
     String gitEvent = System.getenv('GITHUB_EVENT_NAME')
+    // 版本号前缀取**构建时的年份后两位**：2026 → 26，2027 → 27（跨年自动跟随，不再硬编码）。
+    // 必须保持"数字开头"：Forge/NeoForge 的 mods.toml 用 VALID_VERSION = ^\d+.* 校验 version，
+    // 不匹配会抛 "Illegal version number specified" 导致整个 mod 加载失败
+    // （见 net.neoforged.fml.loading.moddiscovery.ModInfo）。
+    // 用 LocalDate.now()（构建机本地时区），不用 UTC —— 跨年边界上更贴近"构建当天"。
+    String yearPrefix = (java.time.LocalDate.now().getYear() % 100).toString().padLeft(2, '0')
     String dynamic
     if (gitRef != null && gitRef.startsWith('refs/tags/')) {
         // tag 发版：取标签名并去掉前缀 v（不再要求 v 后面必须是数字，
@@ -27,8 +33,8 @@ def resolveVersion = {
         // 本地构建：合法 semver 的 SNAPSHOT
         dynamic = 'SNAPSHOT'
     }
-    // 版本号统一以 26- 开头
-    return '26-' + dynamic
+    // 版本号统一以 <年份后两位>- 开头
+    return yearPrefix + '-' + dynamic
 }
 
 ext {
